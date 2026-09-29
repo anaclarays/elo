@@ -18,20 +18,19 @@ O uso da IA é permitido para:
 
 * Esclarecimento de conceitos técnicos;
 * Apoio na revisão de documentação;
-* Sugestões de melhoria a implementação de funcionalidades;
+* Sugestões de melhoria na implementação de funcionalidades;
 * Identificação de possíveis erros e oportunidades de refatoração;
 * Geração de exemplos de código para estudo e adaptação.
 
-Todo conteúdo produzido com auxílio de IA foi e deverá ser revisado, compreendido e validado por pelo menos um membro da equipe antes de ser incorporado ao projeto.
+Todo conteúdo produzido com auxílio de IA deverá ser revisado, compreendido e validado por pelo menos um membro da equipe antes de ser incorporado ao projeto.
 
 A responsabilidade final pelo código, documentação e decisões arquiteturais permanece exclusivamente com a equipe de desenvolvimento.
 
 ## 3. Consequências Positivas
 
 * Redução do tempo gasto em pesquisas técnicas e resolução de dúvidas.
-* Maior produtividade na implementação de funcionalidades.
+* Maior agilidade na implementação de funcionalidades.
 * Apoio à aprendizagem de tecnologias utilizadas no projeto.
-* Agilidade na implementação.
 * Auxílio na identificação de boas práticas de programação e arquitetura.
 
 ## 4. Consequências Negativas
