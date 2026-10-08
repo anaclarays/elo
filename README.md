@@ -1,28 +1,33 @@
-# elo
+# Elo
 
-## Para configuração do typeScript
+STATUS - Em desenvolvimento.
 
-Execute os comandos para verificar as versões das stacks que vamos utilizar, se as versões aparecerem, pode seguir.
-Caso alguma versão não apareça, é necessário realizar a sua instalação.
+## Backend - Configuração do projeto 
 
-Comandos de verificação:
-`npm --version` a versão deve ser 11..6.2
-`npx --version` a versão deve ser 11.6.2
-`node --version`a versão deve ser v24.12.0
+### Pré-requisitos
 
-Considerando que há o node.js instalado em sua máquina, execute: `npm install -g typescript`
-E depois verifique a versão instalada, execute: `tsc --version` a versão correspondente deve ser 7.0.2
+Antes de executar o projeto, é necessário ter instalado:
 
-## instalando o projeto nestJs
+- [Node.js](https://nodejs.org/)
+- npm (geralmente instalado junto com o Node.js)
+- Git
 
-Vamos usar o Nest CLI, porque ele já cria toda a estrutura inicial corretamente.
-Primeiro, instale o CLI, execute o comando: `npm install -g @nestjs/cli` dentro da pasta do backend do projeto.
-Verifique sua versão, execute: `nest --version`, a versão deve ser 12.0.8;
+### Clonando o repositório
 
-## como foi criada a configuração inicial do projeto:
+Clone o projeto e acesse a pasta:
 
-Foi executado o comando `nest new backend`dentro da pasta do projeto para obtenção das estruturas dos arquivos;
+```bash
+git clone <URL_DO_REPOSITORIO>
+cd elo
+```
+### Siga o passo a passo 
 
-## Para execução e verificação se a estrutura funciona e está carregando normalmente:
+- Acesse o backend: `cd backend`
+- Instale as dependências: `npm install`
+- Para executar o backend em ambiente de desenvolvimento: `npm run start:dev`
 
-Execute o comando: `npm run start:dev`acesso o [localhost:3000](http://localhost:3000) em seu navegador e deverá aparecer Hello World!
+O backend estará disponível em: http://localhost:3000
+
+## Frontend
+
+Ainda não configurado
