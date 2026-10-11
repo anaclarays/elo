@@ -25,19 +25,17 @@ cd elo
 O banco de dados do Sistema ELO é PostgreSQL, hospedado no Neon. Não é
 necessário instalar ou rodar PostgreSQL localmente.
 
-1. Peça acesso a DBA para te adicionar como membro do projeto `elo-db` no painel do Neon. Você vai receber um convite por e-mail.
-2. Acesse [neon.tech](https://neon.tech) e faça login com GitHub (use a
-mesma conta que você usa no repositório).
-3. No painel do projeto `elo-db`, clique em **"Connect"**. Copie as duas
-strings de conexão:
-    - Com o toggle **"Connection Pooling" ativado** → vai para `DATABASE_URL`
-    - Com o toggle **desativado** → vai para `DIRECT_URL`
-4. Na raiz da pasta `backend/`, copie o arquivo de exemplo:
+1. O documento com as credenciais do banco se encontra no Drive do
+   projeto (na pasta `Banco de dados`).
+2. Copie as duas strings de conexão do documento:
+   - `DATABASE_URL` (com pooling)
+   - `DIRECT_URL` (sem pooling)
+3. Na raiz da pasta `backend/`, copie o arquivo de exemplo:
 ```bash
     cd backend
     cp .env.example .env
 ```
-5. Abra o `.env` e cole as duas strings:
+4. Abra o `.env` e cole as duas strings:
 ```
     DATABASE_URL="a-string-com-pooler-aqui"
     DIRECT_URL="a-string-sem-pooler-aqui"
