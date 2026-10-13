@@ -3,7 +3,7 @@
 ## Qual a sua task? - adicione o respectivo código do Jira.
 
 <!-- Exemplo: IESI-51 -->
-<!-- Isso ajudará com que a reviwer tenha acesso mais rápido aos critérios de aceite -->
+<!-- Isso ajudará a reviewer a ter acesso mais rápido aos critérios de aceite -->
 
 ## O que foi feito?
 
