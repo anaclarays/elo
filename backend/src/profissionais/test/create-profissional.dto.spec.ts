@@ -1,6 +1,6 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CreateProfissionalDto, AreaAtuacao } from './create-profissional.dto';
+import { CreateProfissionalDto, AreaAtuacao } from '../dto/create-profissional.dto';
 
 describe('CreateProfissionalDto', () => {
   const dtoValido = {

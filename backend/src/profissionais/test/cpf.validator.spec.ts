@@ -1,4 +1,4 @@
-import { isValidCpf } from './cpf.validator';
+import { isValidCpf } from '../validators/cpf.validator';
 
 describe('isValidCpf', () => {
   it('deve validar um CPF correto', () => {

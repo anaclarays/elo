@@ -6,13 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ProfissionaisService } from './profissionais.service';
-import { CreateProfissionalDto } from './dto/create-profissional.dto';
-import { UpdateProfissionalDto } from './dto/update-profissional.dto';
+import { ProfissionaisService } from '../service/profissionais.service';
+import { CreateProfissionalDto } from '../dto/create-profissional.dto';
+import { UpdateProfissionalDto } from '../dto/update-profissional.dto';
 
 @Controller('profissionais')
 export class ProfissionaisController {
@@ -24,8 +25,8 @@ export class ProfissionaisController {
   }
 
   @Get()
-  findAll() {
-    return this.profissionaisService.findAll();
+  findAll(@Query('cpf') cpf?: string, @Query('nome') nome?: string) {
+    return this.profissionaisService.findAll({ cpf, nome });
   }
 
   @Get(':id')

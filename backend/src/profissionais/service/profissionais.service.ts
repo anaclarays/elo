@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
-import { PG_POOL } from '../database/database.constants';
-import { CreateProfissionalDto } from './dto/create-profissional.dto';
-import { UpdateProfissionalDto } from './dto/update-profissional.dto';
+import { PG_POOL } from '../../database/database.constants';
+import { CreateProfissionalDto } from '../dto/create-profissional.dto';
+import { UpdateProfissionalDto } from '../dto/update-profissional.dto';
 
 @Injectable()
 export class ProfissionaisService {
@@ -52,17 +52,31 @@ export class ProfissionaisService {
     return result.rows[0]; 
   }
 
-  async findAll() {
-    const result = await this.pool.query(
-      `SELECT id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
-              capacidade_semanal, horario_atendimento, status, telefone_atendimento,
-              ativo, created_at, updated_at
-       FROM profissionais
-       WHERE ativo = true
-       ORDER BY nome_completo`,
-    );
-    return result.rows;
+  async findAll(filtros?: { cpf?: string; nome?: string }) {
+  const condicoes: string[] = ['ativo = true'];
+  const valores: any[] = [];
+
+  if (filtros?.cpf) {
+    valores.push(filtros.cpf.replace(/\D/g, ''));
+    condicoes.push(`cpf = $${valores.length}`);
   }
+
+  if (filtros?.nome) {
+    valores.push(`%${filtros.nome}%`);
+    condicoes.push(`nome_completo ILIKE $${valores.length}`);
+  }
+
+  const result = await this.pool.query(
+    `SELECT id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
+            capacidade_semanal, horario_atendimento, status, telefone_atendimento,
+            ativo, created_at, updated_at
+     FROM profissionais
+     WHERE ${condicoes.join(' AND ')}
+     ORDER BY nome_completo`,
+    valores,
+  );
+  return result.rows;
+}
 
   async findOne(id: string) {
     const result = await this.pool.query(

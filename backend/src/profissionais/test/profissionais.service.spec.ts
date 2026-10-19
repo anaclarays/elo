@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { ProfissionaisService } from './profissionais.service';
-import { PG_POOL } from '../database/database.constants';
-import { AreaAtuacao } from './dto/create-profissional.dto';
+import { ProfissionaisService } from '../service/profissionais.service';
+import { PG_POOL } from '../../database/database.constants';
+import { AreaAtuacao } from '../dto/create-profissional.dto';
 
 describe('ProfissionaisService', () => {
   let service: ProfissionaisService;
@@ -75,6 +75,7 @@ describe('ProfissionaisService', () => {
 
   // ---------- Listar ----------
   describe('findAll', () => {
+    
     it('deve retornar apenas profissionais ativos', async () => {
       mockPool.query.mockResolvedValueOnce({
         rows: [{ id: '1', nome_completo: 'Fulana', ativo: true }],
@@ -92,6 +93,27 @@ describe('ProfissionaisService', () => {
       const resultado = await service.findAll();
 
       expect(resultado).toEqual([]);
+    });
+    it('deve filtrar por CPF quando informado', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', cpf: '11144477735' }],
+      });
+
+      await service.findAll({ cpf: '111.444.777-35' });
+
+      expect(mockPool.query.mock.calls[0][0]).toContain('cpf = $1');
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['11144477735']);
+    });
+
+    it('deve filtrar por nome quando informado (busca parcial, case-insensitive)', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', nome_completo: 'Layse Gomes' }],
+      });
+
+      await service.findAll({ nome: 'layse' });
+
+      expect(mockPool.query.mock.calls[0][0]).toContain('ILIKE');
+      expect(mockPool.query.mock.calls[0][1]).toEqual(['%layse%']);
     });
   });
 

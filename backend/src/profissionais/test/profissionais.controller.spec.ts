@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ProfissionaisController } from './profissionais.controller';
-import { ProfissionaisService } from './profissionais.service';
+import { ProfissionaisController } from '../controller/profissionais.controller';
+import { ProfissionaisService } from '../service/profissionais.service';
 
 describe('ProfissionaisController', () => {
   let controller: ProfissionaisController;
@@ -32,12 +32,15 @@ describe('ProfissionaisController', () => {
     expect(resultado).toEqual({ id: '1' });
   });
 
-  it('deve delegar a listagem para o service', async () => {
+    it('deve delegar a listagem para o service, repassando os filtros', async () => {
     mockService.findAll.mockResolvedValueOnce([]);
 
-    await controller.findAll();
+    await controller.findAll('11144477735', 'layse');
 
-    expect(mockService.findAll).toHaveBeenCalled();
+    expect(mockService.findAll).toHaveBeenCalledWith({
+      cpf: '11144477735',
+      nome: 'layse',
+    });
   });
 
   it('deve delegar a busca por id para o service', async () => {
