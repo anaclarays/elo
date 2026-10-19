@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ProfissionaisService } from '../service/profissionais.service';
 import { PG_POOL } from '../../database/database.constants';
-import { AreaAtuacao } from '../dto/create-profissional.dto';
+import { AreaAtuacao, Periodo } from '../dto/create-profissional.dto';
 
 describe('ProfissionaisService', () => {
   let service: ProfissionaisService;
@@ -53,12 +53,14 @@ describe('ProfissionaisService', () => {
       expect(mockPool.query).toHaveBeenCalledTimes(1); // não chega a tentar o INSERT
     });
 
-    it('deve aceitar os campos opcionais de voluntariado quando fornecidos', async () => {
+        it('deve aceitar os campos opcionais de voluntariado quando fornecidos', async () => {
       const dtoVoluntario = {
         ...dtoValido,
         areaAtuacao: AreaAtuacao.VOLUNTARIADO_SAUDE,
         capacidadeSemanal: 10,
-        horarioAtendimento: 'Manhã',
+        periodos: [Periodo.MANHA],
+        horarioInicio: '08:00',
+        horarioFim: '12:00',
         status: 'Ativo',
         telefoneAtendimento: '81988888888',
       };
@@ -69,7 +71,8 @@ describe('ProfissionaisService', () => {
       const resultado = await service.create(dtoVoluntario as any);
 
       expect(resultado.capacidadeSemanal ?? 10).toBeDefined();
-      expect(mockPool.query.mock.calls[1][1]).toContain(10); 
+      expect(mockPool.query.mock.calls[1][1]).toContain(10);
+      expect(mockPool.query.mock.calls[1][1]).toContainEqual([Periodo.MANHA]);
     });
   });
 

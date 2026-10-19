@@ -15,7 +15,6 @@ export class ProfissionaisService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async create(dto: CreateProfissionalDto) {
-    // RN11: prevenção de duplicidade (por CPF e por e-mail)
     const existente = await this.pool.query(
       `SELECT id FROM profissionais WHERE cpf = $1 OR email = $2`,
       [dto.cpf, dto.email],
@@ -29,11 +28,11 @@ export class ProfissionaisService {
     const result = await this.pool.query(
       `INSERT INTO profissionais
         (nome_completo, cpf, telefone, email, area_atuacao, cargo, senha_hash,
-         capacidade_semanal, horario_atendimento, status, telefone_atendimento)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         capacidade_semanal, periodos, horario_inicio, horario_fim, status, telefone_atendimento)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
-                 capacidade_semanal, horario_atendimento, status, telefone_atendimento,
-                 ativo, created_at`,
+                 capacidade_semanal, periodos, horario_inicio, horario_fim, status,
+                 telefone_atendimento, ativo, created_at`,
       [
         dto.nomeCompleto,
         dto.cpf,
@@ -43,7 +42,9 @@ export class ProfissionaisService {
         dto.cargo,
         senhaHash,
         dto.capacidadeSemanal ?? null,
-        dto.horarioAtendimento ?? null,
+        dto.periodos ?? null,
+        dto.horarioInicio ?? null,
+        dto.horarioFim ?? null,
         dto.status ?? null,
         dto.telefoneAtendimento ?? null,
       ],
@@ -53,36 +54,36 @@ export class ProfissionaisService {
   }
 
   async findAll(filtros?: { cpf?: string; nome?: string }) {
-  const condicoes: string[] = ['ativo = true'];
-  const valores: any[] = [];
+    const condicoes: string[] = ['ativo = true'];
+    const valores: any[] = [];
 
-  if (filtros?.cpf) {
-    valores.push(filtros.cpf.replace(/\D/g, ''));
-    condicoes.push(`cpf = $${valores.length}`);
+    if (filtros?.cpf) {
+      valores.push(filtros.cpf.replace(/\D/g, ''));
+      condicoes.push(`cpf = $${valores.length}`);
+    }
+
+    if (filtros?.nome) {
+      valores.push(`%${filtros.nome}%`);
+      condicoes.push(`nome_completo ILIKE $${valores.length}`);
+    }
+
+    const result = await this.pool.query(
+      `SELECT id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
+              capacidade_semanal, periodos, horario_inicio, horario_fim, status,
+              telefone_atendimento, ativo, created_at, updated_at
+       FROM profissionais
+       WHERE ${condicoes.join(' AND ')}
+       ORDER BY nome_completo`,
+      valores,
+    );
+    return result.rows;
   }
-
-  if (filtros?.nome) {
-    valores.push(`%${filtros.nome}%`);
-    condicoes.push(`nome_completo ILIKE $${valores.length}`);
-  }
-
-  const result = await this.pool.query(
-    `SELECT id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
-            capacidade_semanal, horario_atendimento, status, telefone_atendimento,
-            ativo, created_at, updated_at
-     FROM profissionais
-     WHERE ${condicoes.join(' AND ')}
-     ORDER BY nome_completo`,
-    valores,
-  );
-  return result.rows;
-}
 
   async findOne(id: string) {
     const result = await this.pool.query(
       `SELECT id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
-              capacidade_semanal, horario_atendimento, status, telefone_atendimento,
-              ativo, created_at, updated_at
+              capacidade_semanal, periodos, horario_inicio, horario_fim, status,
+              telefone_atendimento, ativo, created_at, updated_at
        FROM profissionais WHERE id = $1`,
       [id],
     );
@@ -93,9 +94,9 @@ export class ProfissionaisService {
   }
 
   async update(id: string, dto: UpdateProfissionalDto) {
-    await this.findOne(id); // garantir que existe 
+    await this.findOne(id);
 
-    // Se o CPF ou e-mail forem alterados, verificar duplicidade de novo
+    // se CPF ou e-mail forem alterados, verificar duplicidade de novo
     if (dto.cpf || dto.email) {
       const conflito = await this.pool.query(
         `SELECT id FROM profissionais WHERE (cpf = $1 OR email = $2) AND id != $3`,
@@ -115,14 +116,16 @@ export class ProfissionaisService {
         area_atuacao = COALESCE($5, area_atuacao),
         cargo = COALESCE($6, cargo),
         capacidade_semanal = COALESCE($7, capacidade_semanal),
-        horario_atendimento = COALESCE($8, horario_atendimento),
-        status = COALESCE($9, status),
-        telefone_atendimento = COALESCE($10, telefone_atendimento),
+        periodos = COALESCE($8, periodos),
+        horario_inicio = COALESCE($9, horario_inicio),
+        horario_fim = COALESCE($10, horario_fim),
+        status = COALESCE($11, status),
+        telefone_atendimento = COALESCE($12, telefone_atendimento),
         updated_at = now()
-       WHERE id = $11
+       WHERE id = $13
        RETURNING id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
-                 capacidade_semanal, horario_atendimento, status, telefone_atendimento,
-                 ativo, updated_at`,
+                 capacidade_semanal, periodos, horario_inicio, horario_fim, status,
+                 telefone_atendimento, ativo, updated_at`,
       [
         dto.nomeCompleto ?? null,
         dto.cpf ?? null,
@@ -131,7 +134,9 @@ export class ProfissionaisService {
         dto.areaAtuacao ?? null,
         dto.cargo ?? null,
         dto.capacidadeSemanal ?? null,
-        dto.horarioAtendimento ?? null,
+        dto.periodos ?? null,
+        dto.horarioInicio ?? null,
+        dto.horarioFim ?? null,
         dto.status ?? null,
         dto.telefoneAtendimento ?? null,
         id,
@@ -142,10 +147,8 @@ export class ProfissionaisService {
   }
 
   async remove(id: string) {
-    await this.findOne(id); // garantir que existe antes de "remover"
+    await this.findOne(id); // garante que existe antes de "remover"
 
-    // Soft delete: mantém a linha (preserva vínculo com atendimentos/dados),
-    // só marca como inativo.
     await this.pool.query(
       `UPDATE profissionais SET ativo = false, updated_at = now() WHERE id = $1`,
       [id],
