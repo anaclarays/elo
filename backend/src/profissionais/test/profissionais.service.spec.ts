@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ProfissionaisService } from '../service/profissionais.service';
@@ -7,13 +6,7 @@ import { AreaAtuacao, Periodo } from '../dto/create-profissional.dto';
 
 describe('ProfissionaisService', () => {
   let service: ProfissionaisService;
-  const mockPool: {
-    query: jest.MockedFunction<
-      (query: string, values?: unknown[]) => Promise<{ rows: any[] }>
-    >;
-  } = {
-    query: jest.fn(),
-  };
+  const mockPool = { query: jest.fn() };
 
   const dtoValido = {
     nomeCompleto: 'Profissional Teste',

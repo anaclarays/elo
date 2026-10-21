@@ -1,5 +1,9 @@
 import { jest } from '@jest/globals';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateBeneficiarioDto } from '../dto/create-paciente.dto';
 import { PacienteRecord, PacientesRepository } from '../pacientes.repository';
 import { PacientesService } from '../service/pacientes.service';
@@ -24,6 +28,8 @@ describe('PacientesService', () => {
         ) => Promise<PacienteRecord | null>
       >(),
     remove: jest.fn<(id: number) => Promise<boolean>>(),
+    existsByCpf:
+      jest.fn<(cpf: string, ignoreId?: number) => Promise<boolean>>(),
   };
 
   const createDto: CreateBeneficiarioDto = {
@@ -54,6 +60,7 @@ describe('PacientesService', () => {
       repository as unknown as PacientesRepository,
     );
     jest.clearAllMocks();
+    repository.existsByCpf.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -96,6 +103,19 @@ describe('PacientesService', () => {
       await expect(
         service.create({ ...createDto, fazUsoMedicacao: true }),
       ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a CPF already used by another active patient', async () => {
+      repository.existsByCpf.mockResolvedValue(true);
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(repository.existsByCpf).toHaveBeenCalledWith(
+        createDto.cpf,
+        undefined,
+      );
       expect(repository.create).not.toHaveBeenCalled();
     });
   });
@@ -213,6 +233,41 @@ describe('PacientesService', () => {
         fazUsoMedicacao: false,
         quaisMedicacoes: null,
       });
+    });
+
+    it('rejects a CPF already used by another active patient', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 1,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+      repository.existsByCpf.mockResolvedValue(true);
+
+      await expect(
+        service.update(1, { cpf: '529.982.247-25' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(repository.existsByCpf).toHaveBeenCalledWith('529.982.247-25', 1);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('does not check the CPF when it is not being updated', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 1,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+      repository.update.mockResolvedValue({
+        id: 1,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+
+      await service.update(1, { nomeBeneficiario: 'João Silva' });
+
+      expect(repository.existsByCpf).not.toHaveBeenCalled();
     });
 
     it('rejects an empty update', async () => {

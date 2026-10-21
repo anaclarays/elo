@@ -97,6 +97,19 @@ export class PacientesRepository {
     return (result.rows[0] as PacienteRecord | undefined) ?? null;
   }
 
+  async existsByCpf(cpf: string, ignoreId?: number): Promise<boolean> {
+    const values: (string | number)[] = [cpf.replace(/\D/g, '')];
+    let query = `SELECT 1 FROM pacientes WHERE regexp_replace(cpf, '\\D', '', 'g') = $1 AND ativo = true`;
+
+    if (ignoreId !== undefined) {
+      values.push(ignoreId);
+      query += ` AND id <> $${values.length}`;
+    }
+
+    const result = await this.pool.query(`${query} LIMIT 1`, values);
+    return result.rows.length > 0;
+  }
+
   async update(
     id: number,
     paciente: Partial<CreateBeneficiarioDto>,

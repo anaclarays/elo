@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ export class PacientesService {
 
   async create(createPacienteDto: CreateBeneficiarioDto) {
     this.validateConditionalFields(createPacienteDto);
+    await this.ensureCpfIsAvailable(createPacienteDto.cpf);
     return this.pacientesRepository.create({
       ...createPacienteDto,
       dataCadastro: new Date().toISOString(),
@@ -72,7 +74,14 @@ export class PacientesService {
     const pacienteAtualizado = { ...currentPaciente, ...normalizedUpdate };
     this.validateConditionalFields(pacienteAtualizado);
 
-    const paciente = await this.pacientesRepository.update(id, normalizedUpdate);
+    if (normalizedUpdate.cpf !== undefined) {
+      await this.ensureCpfIsAvailable(normalizedUpdate.cpf, id);
+    }
+
+    const paciente = await this.pacientesRepository.update(
+      id,
+      normalizedUpdate,
+    );
 
     if (!paciente) {
       throw new NotFoundException(`Paciente com id ${id} não encontrado.`);
@@ -87,6 +96,12 @@ export class PacientesService {
 
     if (!removed) {
       throw new NotFoundException(`Paciente com id ${id} não encontrado.`);
+    }
+  }
+
+  private async ensureCpfIsAvailable(cpf: string, ignoreId?: number) {
+    if (await this.pacientesRepository.existsByCpf(cpf, ignoreId)) {
+      throw new ConflictException('Já existe um paciente com este CPF.');
     }
   }
 

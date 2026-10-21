@@ -1,11 +1,10 @@
-import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProfissionaisController } from '../controller/profissionais.controller';
 import { ProfissionaisService } from '../service/profissionais.service';
 
 describe('ProfissionaisController', () => {
   let controller: ProfissionaisController;
-  const mockService: any = {
+  const mockService = {
     create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
@@ -25,7 +24,7 @@ describe('ProfissionaisController', () => {
 
   it('deve delegar a criação para o service', async () => {
     const dto = { nomeCompleto: 'Teste' } as any;
-    (mockService.create as any).mockResolvedValueOnce({ id: '1' });
+    mockService.create.mockResolvedValueOnce({ id: '1' });
 
     const resultado = await controller.create(dto);
 
@@ -34,7 +33,7 @@ describe('ProfissionaisController', () => {
   });
 
     it('deve delegar a listagem para o service, repassando os filtros', async () => {
-    (mockService.findAll as any).mockResolvedValueOnce([]);
+    mockService.findAll.mockResolvedValueOnce([]);
 
     await controller.findAll('11144477735', 'layse');
 
@@ -45,7 +44,7 @@ describe('ProfissionaisController', () => {
   });
 
   it('deve delegar a busca por id para o service', async () => {
-    (mockService.findOne as any).mockResolvedValueOnce({ id: '1' });
+    mockService.findOne.mockResolvedValueOnce({ id: '1' });
 
     await controller.findOne('1');
 
@@ -54,16 +53,7 @@ describe('ProfissionaisController', () => {
 
   it('deve delegar a atualização para o service', async () => {
     const dto = { cargo: 'Novo' } as any;
-    (mockService.update as any).mockResolvedValueOnce({ id: '1', ...dto });
-
-    await controller.update('1', dto);
-
-    expect(mockService.update).toHaveBeenCalledWith('1', dto);
-  });
-
-  it('deve aceitar atualização parcial via patch', async () => {
-    const dto = { cargo: 'Novo Cargo' } as any;
-    (mockService.update as any).mockResolvedValueOnce({ id: '1', ...dto });
+    mockService.update.mockResolvedValueOnce({ id: '1', ...dto });
 
     await controller.update('1', dto);
 
@@ -71,7 +61,7 @@ describe('ProfissionaisController', () => {
   });
 
   it('deve delegar a remoção para o service', async () => {
-    (mockService.remove as any).mockResolvedValueOnce({ message: 'ok' });
+    mockService.remove.mockResolvedValueOnce({ message: 'ok' });
 
     await controller.remove('1');
 

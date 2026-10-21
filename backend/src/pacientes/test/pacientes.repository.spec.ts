@@ -119,6 +119,26 @@ describe('PacientesRepository', () => {
     ).resolves.toBeNull();
   });
 
+  it('checks CPF duplicates among active patients ignoring formatting', async () => {
+    pool.query.mockResolvedValue({ rows: [{ '?column?': 1 }] });
+
+    await expect(repository.existsByCpf('111.444.777-35')).resolves.toBe(true);
+    expect(pool.query).toHaveBeenCalledWith(
+      "SELECT 1 FROM pacientes WHERE regexp_replace(cpf, '\\D', '', 'g') = $1 AND ativo = true LIMIT 1",
+      ['11144477735'],
+    );
+  });
+
+  it('ignores the patient being updated when checking CPF duplicates', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await expect(repository.existsByCpf('11144477735', 7)).resolves.toBe(false);
+    expect(pool.query).toHaveBeenCalledWith(
+      "SELECT 1 FROM pacientes WHERE regexp_replace(cpf, '\\D', '', 'g') = $1 AND ativo = true AND id <> $2 LIMIT 1",
+      ['11144477735', 7],
+    );
+  });
+
   it('reports whether a patient was deleted', async () => {
     pool.query.mockResolvedValue({ rows: [{ id: 1 }] });
 
