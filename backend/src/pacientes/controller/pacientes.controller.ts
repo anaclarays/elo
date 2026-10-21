@@ -5,14 +5,15 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
 } from '@nestjs/common';
 import {
   CreateBeneficiarioDto,
   UpdateBeneficiarioDto,
-} from './dto/create-paciente.dto';
-import { PacientesService } from './pacientes.service';
+} from '../dto/create-paciente.dto';
+import { PacientesService } from '../service/pacientes.service';
 
 @Controller('pacientes')
 export class PacientesController {
@@ -33,6 +34,7 @@ export class PacientesController {
     return this.pacientesService.findOne(id);
   }
 
+  @Patch(':id')
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,

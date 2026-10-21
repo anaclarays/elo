@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateBeneficiarioDto } from './dto/create-paciente.dto';
-import { PacientesRepository } from './pacientes.repository';
+import { CreateBeneficiarioDto } from '../dto/create-paciente.dto';
+import { PacientesRepository } from '../pacientes.repository';
 
 @Injectable()
 export class PacientesService {
@@ -48,13 +48,31 @@ export class PacientesService {
       throw new NotFoundException(`Paciente com id ${id} não encontrado.`);
     }
 
-    const pacienteAtualizado = { ...currentPaciente, ...updatePacienteDto };
+    const normalizedUpdate: Partial<CreateBeneficiarioDto> = {
+      ...updatePacienteDto,
+    };
+
+    if (normalizedUpdate.possuiIrmaos === false) {
+      normalizedUpdate.quantidadeIrmaos = null as any;
+      normalizedUpdate.nomesIrmaos = null as any;
+    }
+
+    if (normalizedUpdate.possuiDeficit === false) {
+      normalizedUpdate.queixa = null as any;
+    }
+
+    if (normalizedUpdate.fazAcompanhamento === false) {
+      normalizedUpdate.quaisAcompanhamentos = null as any;
+    }
+
+    if (normalizedUpdate.fazUsoMedicacao === false) {
+      normalizedUpdate.quaisMedicacoes = null as any;
+    }
+
+    const pacienteAtualizado = { ...currentPaciente, ...normalizedUpdate };
     this.validateConditionalFields(pacienteAtualizado);
 
-    const paciente = await this.pacientesRepository.update(
-      id,
-      updatePacienteDto,
-    );
+    const paciente = await this.pacientesRepository.update(id, normalizedUpdate);
 
     if (!paciente) {
       throw new NotFoundException(`Paciente com id ${id} não encontrado.`);
@@ -86,7 +104,7 @@ export class PacientesService {
       | 'possuiIrmaos'
       | 'quantidadeIrmaos'
       | 'nomesIrmaos'
-      | 'possuiDefice'
+      | 'possuiDeficit'
       | 'queixa'
       | 'fazAcompanhamento'
       | 'quaisAcompanhamentos'
@@ -103,7 +121,7 @@ export class PacientesService {
       );
     }
 
-    if (paciente.possuiDefice && !paciente.queixa) {
+    if (paciente.possuiDeficit && !paciente.queixa) {
       throw new BadRequestException(
         'Informe a queixa de aprendizado quando o paciente possuir déficit ou transtorno.',
       );

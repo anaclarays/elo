@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { CreateBeneficiarioDto } from './dto/create-paciente.dto';
-import { PacienteRecord, PacientesRepository } from './pacientes.repository';
-import { PacientesService } from './pacientes.service';
+import { CreateBeneficiarioDto } from '../dto/create-paciente.dto';
+import { PacienteRecord, PacientesRepository } from '../pacientes.repository';
+import { PacientesService } from '../service/pacientes.service';
 
 describe('PacientesService', () => {
   let service: PacientesService;
@@ -31,7 +31,7 @@ describe('PacientesService', () => {
     nomeBeneficiario: 'João',
     dataNascimento: '2010-01-01',
     rg: '1234567',
-    cpf: '123.456.789-00',
+    cpf: '111.444.777-35',
     nomeMae: 'Maria',
     endereco: 'Rua A',
     numero: '10',
@@ -44,7 +44,7 @@ describe('PacientesService', () => {
     possuiIrmaos: false,
     escolaFrequenta: 'Escola Municipal',
     serie: '7º Ano',
-    possuiDefice: false,
+    possuiDeficit: false,
     fazAcompanhamento: false,
     fazUsoMedicacao: false,
   };
@@ -68,6 +68,7 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: now.toISOString(),
+        ativo: true,
       });
 
       const result = await service.create(createDto);
@@ -80,6 +81,7 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: now.toISOString(),
+        ativo: true,
       });
     });
 
@@ -104,6 +106,7 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
       },
     ];
     repository.findAll.mockResolvedValue(patients);
@@ -118,6 +121,7 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
       };
       repository.findOne.mockResolvedValue(patient);
 
@@ -148,12 +152,14 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
         ...update,
       };
       repository.findOne.mockResolvedValue({
         id: 1,
         ...createDto,
         dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
       });
       repository.update.mockResolvedValue(patient);
 
@@ -166,12 +172,47 @@ describe('PacientesService', () => {
         id: 1,
         ...createDto,
         dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
       });
 
       await expect(
         service.update(1, { possuiIrmaos: true }),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('clears dependent fields when a related condition becomes false', async () => {
+      repository.findOne.mockResolvedValue({
+        id: 1,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+      repository.update.mockResolvedValue({
+        id: 1,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+
+      await service.update(1, {
+        possuiIrmaos: false,
+        possuiDeficit: false,
+        fazAcompanhamento: false,
+        fazUsoMedicacao: false,
+      });
+
+      expect(repository.update).toHaveBeenCalledWith(1, {
+        possuiIrmaos: false,
+        quantidadeIrmaos: null,
+        nomesIrmaos: null,
+        possuiDeficit: false,
+        queixa: null,
+        fazAcompanhamento: false,
+        quaisAcompanhamentos: null,
+        fazUsoMedicacao: false,
+        quaisMedicacoes: null,
+      });
     });
 
     it('rejects an empty update', async () => {

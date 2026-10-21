@@ -6,6 +6,7 @@ import { CreateBeneficiarioDto } from './dto/create-paciente.dto';
 export interface PacienteRecord extends CreateBeneficiarioDto {
   id: number;
   dataCadastro: string;
+  ativo: boolean;
 }
 
 type CreatePacienteRecord = CreateBeneficiarioDto & { dataCadastro: string };
@@ -30,7 +31,7 @@ const PACIENTE_COLUMNS = {
   nomesIrmaos: 'nomes_irmaos',
   escolaFrequenta: 'escola_frequenta',
   serie: 'serie',
-  possuiDefice: 'possui_defice',
+  possuiDeficit: 'possui_deficit',
   queixa: 'queixa',
   fazAcompanhamento: 'faz_acompanhamento',
   quaisAcompanhamentos: 'quais_acompanhamentos',
@@ -45,9 +46,12 @@ const PACIENTE_FIELDS = Object.keys(
 ) as (keyof CreateBeneficiarioDto)[];
 const PACIENTE_PROJECTION = [
   'id',
-  'numero_cadastro AS "numeroCadastro"',
   'data_cadastro AS "dataCadastro"',
-  ...PACIENTE_FIELDS.map((field) => `${PACIENTE_COLUMNS[field]} AS "${field}"`),
+  'ativo',
+  ...PACIENTE_FIELDS.filter((field) => field !== 'numeroCadastro').map(
+    (field) => `${PACIENTE_COLUMNS[field]} AS "${field}"`,
+  ),
+  'numero_cadastro AS "numeroCadastro"',
 ].join(', ');
 
 @Injectable()
@@ -80,14 +84,14 @@ export class PacientesRepository {
 
   async findAll(): Promise<PacienteRecord[]> {
     const result = await this.pool.query(
-      `SELECT ${PACIENTE_PROJECTION} FROM pacientes ORDER BY data_cadastro DESC, id DESC`,
+      `SELECT ${PACIENTE_PROJECTION} FROM pacientes WHERE ativo = true ORDER BY data_cadastro DESC, id DESC`,
     );
     return result.rows as PacienteRecord[];
   }
 
   async findOne(id: number): Promise<PacienteRecord | null> {
     const result = await this.pool.query(
-      `SELECT ${PACIENTE_PROJECTION} FROM pacientes WHERE id = $1`,
+      `SELECT ${PACIENTE_PROJECTION} FROM pacientes WHERE id = $1 AND ativo = true`,
       [id],
     );
     return (result.rows[0] as PacienteRecord | undefined) ?? null;
@@ -120,7 +124,7 @@ export class PacientesRepository {
 
   async remove(id: number): Promise<boolean> {
     const result = await this.pool.query(
-      'DELETE FROM pacientes WHERE id = $1 RETURNING id',
+      'UPDATE pacientes SET ativo = false, updated_at = now() WHERE id = $1 RETURNING id',
       [id],
     );
     return result.rows.length > 0;

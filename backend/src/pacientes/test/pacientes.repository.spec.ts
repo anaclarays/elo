@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import type { Pool } from 'pg';
-import { PacientesRepository } from './pacientes.repository';
+import { PacientesRepository } from '../pacientes.repository';
 
 describe('PacientesRepository', () => {
   let repository: PacientesRepository;
@@ -18,7 +18,7 @@ describe('PacientesRepository', () => {
     nomeBeneficiario: 'João',
     dataNascimento: '2010-01-01',
     rg: '1234567',
-    cpf: '123.456.789-00',
+    cpf: '111.444.777-35',
     nomeMae: 'Maria',
     endereco: 'Rua A',
     numero: '10',
@@ -31,7 +31,7 @@ describe('PacientesRepository', () => {
     possuiIrmaos: false,
     escolaFrequenta: 'Escola Municipal',
     serie: '7º Ano',
-    possuiDefice: false,
+    possuiDeficit: false,
     fazAcompanhamento: false,
     fazUsoMedicacao: false,
     nomePai: null,
@@ -52,7 +52,7 @@ describe('PacientesRepository', () => {
       nomeBeneficiario: 'João',
       dataNascimento: '2010-01-01',
       rg: '1234567',
-      cpf: '123.456.789-00',
+      cpf: '111.444.777-35',
       nomeMae: 'Maria',
       endereco: 'Rua A',
       numero: '10',
@@ -65,7 +65,7 @@ describe('PacientesRepository', () => {
       possuiIrmaos: false,
       escolaFrequenta: 'Escola Municipal',
       serie: '7º Ano',
-      possuiDefice: false,
+      possuiDeficit: false,
       fazAcompanhamento: false,
       fazUsoMedicacao: false,
     });
@@ -124,7 +124,7 @@ describe('PacientesRepository', () => {
 
     await expect(repository.remove(1)).resolves.toBe(true);
     expect(pool.query).toHaveBeenCalledWith(
-      'DELETE FROM pacientes WHERE id = $1 RETURNING id',
+      'UPDATE pacientes SET ativo = false, updated_at = now() WHERE id = $1 RETURNING id',
       [1],
     );
   });

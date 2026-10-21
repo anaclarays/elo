@@ -10,6 +10,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+import { IsCpf } from '../../profissionais/validators/cpf.validator';
 
 export enum QueixaAprendizado {
   MOTORA = 'motora',
@@ -35,8 +36,7 @@ export class CreateBeneficiarioDto {
   @IsString()
   rg: string;
 
-  @IsNotEmpty()
-  @IsString()
+  @IsCpf({ message: 'CPF inválido' })
   cpf: string;
 
   @IsNotEmpty()
@@ -89,7 +89,7 @@ export class CreateBeneficiarioDto {
 
   @IsNotEmpty()
   @IsBoolean()
-  possuiDefice: boolean;
+  possuiDeficit: boolean;
 
   @IsNotEmpty()
   @IsBoolean()
@@ -110,7 +110,7 @@ export class CreateBeneficiarioDto {
   @IsString()
   nomesIrmaos?: string;
 
-  @ValidateIf((paciente) => paciente.possuiDefice === true)
+  @ValidateIf((paciente) => paciente.possuiDeficit === true)
   @IsNotEmpty()
   @IsEnum(QueixaAprendizado)
   queixa?: QueixaAprendizado;
@@ -156,8 +156,7 @@ export class UpdateBeneficiarioDto {
   rg?: string;
 
   @IsOptional()
-  @IsNotEmpty()
-  @IsString()
+  @IsCpf({ message: 'CPF inválido' })
   cpf?: string;
 
   @IsOptional()
@@ -230,7 +229,7 @@ export class UpdateBeneficiarioDto {
 
   @IsOptional()
   @IsBoolean()
-  possuiDefice?: boolean;
+  possuiDeficit?: boolean;
 
   @IsOptional()
   @IsEnum(QueixaAprendizado)

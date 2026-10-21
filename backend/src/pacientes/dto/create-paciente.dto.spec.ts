@@ -11,7 +11,7 @@ const validPaciente = {
   nomeBeneficiario: 'João',
   dataNascimento: '2010-01-01',
   rg: '1234567',
-  cpf: '123.456.789-00',
+  cpf: '111.444.777-35',
   nomeMae: 'Maria',
   endereco: 'Rua A',
   numero: '10',
@@ -24,7 +24,7 @@ const validPaciente = {
   possuiIrmaos: false,
   escolaFrequenta: 'Escola Municipal',
   serie: '7º Ano',
-  possuiDefice: false,
+  possuiDeficit: false,
   fazAcompanhamento: false,
   fazUsoMedicacao: false,
 };
@@ -56,7 +56,7 @@ describe('CreateBeneficiarioDto', () => {
     const dto = plainToInstance(CreateBeneficiarioDto, {
       ...validPaciente,
       possuiIrmaos: true,
-      possuiDefice: true,
+      possuiDeficit: true,
       fazAcompanhamento: true,
       fazUsoMedicacao: true,
     });
@@ -81,7 +81,7 @@ describe('CreateBeneficiarioDto', () => {
       possuiIrmaos: true,
       quantidadeIrmaos: 2,
       nomesIrmaos: 'Ana e Pedro',
-      possuiDefice: true,
+      possuiDeficit: true,
       queixa: QueixaAprendizado.LEITURA,
       fazAcompanhamento: true,
       quaisAcompanhamentos: 'Psicopedagogia',
