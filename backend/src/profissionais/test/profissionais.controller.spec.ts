@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProfissionaisController } from '../controller/profissionais.controller';
 import { ProfissionaisService } from '../service/profissionais.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtService } from '@nestjs/jwt';
 
 describe('ProfissionaisController', () => {
   let controller: ProfissionaisController;
@@ -16,7 +18,11 @@ describe('ProfissionaisController', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProfissionaisController],
-      providers: [{ provide: ProfissionaisService, useValue: mockService }],
+      providers: [
+        { provide: ProfissionaisService, useValue: mockService },
+        { provide: JwtAuthGuard, useValue: { canActivate: () => true } },
+        { provide: JwtService, useValue: { verifyAsync: jest.fn() } },
+      ],
     }).compile();
 
     controller = module.get<ProfissionaisController>(ProfissionaisController);
