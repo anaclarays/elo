@@ -44,6 +44,17 @@ export class DatabaseService implements OnModuleInit {
       )
     `);
 
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS recuperacao_senha_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        profissional_id UUID NOT NULL REFERENCES profissionais(id) ON DELETE CASCADE,
+        token_hash CHAR(64) NOT NULL UNIQUE,
+        expira_em TIMESTAMPTZ NOT NULL,
+        usado_em TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     const result = await this.pool.query('SELECT NOW()');
     console.log('Conexão com o PostgreSQL (Neon) estabelecida:', result.rows[0]);
   }
