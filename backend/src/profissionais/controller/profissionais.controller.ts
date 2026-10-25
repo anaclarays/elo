@@ -22,6 +22,7 @@ export class ProfissionaisController {
   constructor(private readonly profissionaisService: ProfissionaisService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateProfissionalDto) {
     return this.profissionaisService.create(dto);
   }
@@ -40,7 +41,10 @@ export class ProfissionaisController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProfissionalDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProfissionalDto,
+  ) {
     return this.profissionaisService.update(id, dto);
   }
 

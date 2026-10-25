@@ -40,9 +40,17 @@ export class PacientesController {
   }
 
   @Patch(':id')
-  @Put(':id')
   @UseGuards(JwtAuthGuard)
   update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updatePacienteDto: UpdateBeneficiarioDto,
+  ) {
+    return this.pacientesService.update(id, updatePacienteDto);
+  }
+
+  @Put(':id')
+  @UseGuards(JwtAuthGuard)
+  replace(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePacienteDto: UpdateBeneficiarioDto,
   ) {

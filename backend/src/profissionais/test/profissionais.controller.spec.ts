@@ -38,7 +38,7 @@ describe('ProfissionaisController', () => {
     expect(resultado).toEqual({ id: '1' });
   });
 
-    it('deve delegar a listagem para o service, repassando os filtros', async () => {
+  it('deve delegar a listagem para o service, repassando os filtros', async () => {
     mockService.findAll.mockResolvedValueOnce([]);
 
     await controller.findAll('11144477735', 'layse');
