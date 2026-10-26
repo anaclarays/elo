@@ -8,7 +8,9 @@ import {
   Patch,
   Post,
   Put,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import {
   CreateBeneficiarioDto,
   UpdateBeneficiarioDto,
@@ -20,22 +22,25 @@ export class PacientesController {
   constructor(private readonly pacientesService: PacientesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   create(@Body() createPacienteDto: CreateBeneficiarioDto) {
     return this.pacientesService.create(createPacienteDto);
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   findAll() {
     return this.pacientesService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.pacientesService.findOne(id);
   }
 
   @Patch(':id')
-  @Put(':id')
+  @UseGuards(JwtAuthGuard)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePacienteDto: UpdateBeneficiarioDto,
@@ -43,7 +48,17 @@ export class PacientesController {
     return this.pacientesService.update(id, updatePacienteDto);
   }
 
+  @Put(':id')
+  @UseGuards(JwtAuthGuard)
+  replace(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updatePacienteDto: UpdateBeneficiarioDto,
+  ) {
+    return this.pacientesService.update(id, updatePacienteDto);
+  }
+
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.pacientesService.remove(id);
   }
