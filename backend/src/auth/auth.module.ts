@@ -2,17 +2,20 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './controller/auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { StringValue } from 'ms';
 import { ThrottlerModule } from '@nestjs/throttler';
 import nodemailer from 'nodemailer';
-import { MAIL_TRANSPORT } from './service/auth.service';
+import { AuthService, MAIL_TRANSPORT } from './service/auth.service';
 
 @Module({
   controllers: [AuthController],
   imports: [
+    ConfigModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     JwtModule.registerAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>('JWT_SECRET');
@@ -32,6 +35,7 @@ import { MAIL_TRANSPORT } from './service/auth.service';
     }),
   ],
   providers: [
+    AuthService,
     JwtAuthGuard,
     {
       provide: MAIL_TRANSPORT,

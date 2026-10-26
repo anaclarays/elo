@@ -82,13 +82,27 @@ describe('AuthService', () => {
     mailTransport.sendMail.mockRejectedValue(new Error('smtp down'));
     mockPool.query
       .mockResolvedValueOnce({
-        rows: [{ id: '1', email: 'a@b.com', nome_completo: '<b>A</b>' }],
+        rows: [
+          {
+            id: '1',
+            email: 'a@b.com',
+            nome_completo: `Maria José <b> & "Silva"`,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const result = await service.solicitarRecuperacao({ email: 'a@b.com' });
     expect(result).toHaveProperty('message');
+    expect(mailTransport.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Maria José <b> & "Silva"'),
+        html: expect.stringContaining(
+          'Maria José &lt;b&gt; &amp; &quot;Silva&quot;',
+        ),
+      }),
+    );
     expect(mockPool.query).toHaveBeenLastCalledWith(
       expect.stringContaining('usado_em = NOW()'),
       expect.any(Array),

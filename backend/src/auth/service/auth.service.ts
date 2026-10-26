@@ -12,13 +12,25 @@ import * as bcrypt from 'bcrypt';
 import type { Transporter } from 'nodemailer';
 import { createHash, randomBytes } from 'node:crypto';
 import { StringValue } from 'ms';
-import { escape } from 'node:querystring';
 import { PG_POOL } from '../../database/database.constants';
 import { LoginDto } from '../dto/login.dto';
 import { RedefinirSenhaDto } from '../dto/redefinir-senha.dto';
 import { SolicitarRecuperacaoDto } from '../dto/solicitar-recuperacao.dto';
 
 export const MAIL_TRANSPORT = 'MAIL_TRANSPORT';
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[char];
+  });
+}
 
 const RESPOSTA_RECUPERACAO = {
   message:
@@ -136,7 +148,7 @@ export class AuthService {
       url.searchParams.set('token', token);
       const link = url.toString();
       try {
-        const nomeSeguro = escape(profissional.nome_completo);
+        const nomeSeguro = escapeHtml(profissional.nome_completo);
         await this.mailTransport.sendMail({
           from,
           to: profissional.email,
