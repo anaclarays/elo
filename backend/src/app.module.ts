@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
 import { PacientesModule } from './pacientes/pacientes.module';
 import { ProfissionaisModule } from './profissionais/profissionais.module';
+import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -13,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
     DatabaseModule,
     PacientesModule,
     ProfissionaisModule,
+    PacientesTeaModule,
     AuthModule,
   ],
   controllers: [AppController],
