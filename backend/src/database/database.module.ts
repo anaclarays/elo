@@ -1,9 +1,11 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import { DatabaseService } from './database.service';
 import { PG_POOL } from './database.constants';
 
+// Colunas DATE voltam como texto "AAAA-MM-DD"
+types.setTypeParser(1082, (valor: string) => valor);
 @Global()
 @Module({
   imports: [ConfigModule],
