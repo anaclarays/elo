@@ -1,8 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PacientesTeaService } from '../service/pacientes-tea.service';
 import { PG_POOL } from '../../database/database.constants';
-import { CategoriaEtaria, EstadoCivil, Genero } from '../enum/pacientes-tea.enum';
+import {
+  CategoriaEtaria,
+  EstadoCivil,
+  Genero,
+} from '../enum/pacientes-tea.enum';
 
 describe('PacientesTeaService', () => {
   let service: PacientesTeaService;
@@ -21,16 +29,16 @@ describe('PacientesTeaService', () => {
     numPessoasCasa: 4,
   };
 
-function nascidoComIdade(idade: number): string {
-  const hoje = new Date();
-  const nascimento = new Date(
-    hoje.getFullYear() - idade,
-    hoje.getMonth(),
-    hoje.getDate(),
-  );
+  function nascidoComIdade(idade: number): string {
+    const hoje = new Date();
+    const nascimento = new Date(
+      hoje.getFullYear() - idade,
+      hoje.getMonth(),
+      hoje.getDate(),
+    );
 
-  return nascimento.toISOString().slice(0, 10);
-}
+    return nascimento.toISOString().slice(0, 10);
+  }
 
   const dtoCrianca = {
     categoria: CategoriaEtaria.CRIANCA,
@@ -61,13 +69,16 @@ function nascidoComIdade(idade: number): string {
   // Simula o client da transação: responde conforme o comando SQL recebido
   function simularTransacao() {
     mockClient.query.mockImplementation(async (sql: string) => {
-      if (sql.includes('INSERT INTO pacientes_tea')) return { rows: [{ id: 'p1', numero_cadastro: 1 }] };
-      if (sql.includes('INSERT INTO dados_familiares')) return { rows: [{ id: 'f1', paciente_id: 'p1' }] };
+      if (sql.includes('INSERT INTO pacientes_tea'))
+        return { rows: [{ id: 'p1', numero_cadastro: 1 }] };
+      if (sql.includes('INSERT INTO dados_familiares'))
+        return { rows: [{ id: 'f1', paciente_id: 'p1' }] };
       return { rows: [] }; // BEGIN, COMMIT, ROLLBACK, UPDATE
     });
   }
 
-  const comandosExecutados = () => mockClient.query.mock.calls.map((c) => String(c[0]));
+  const comandosExecutados = () =>
+    mockClient.query.mock.calls.map((c) => String(c[0]));
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -75,14 +86,17 @@ function nascidoComIdade(idade: number): string {
     simularTransacao();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PacientesTeaService, { provide: PG_POOL, useValue: mockPool }],
+      providers: [
+        PacientesTeaService,
+        { provide: PG_POOL, useValue: mockPool },
+      ],
     }).compile();
 
     service = module.get<PacientesTeaService>(PacientesTeaService);
   });
 
   // ---------- CREATE ----------
-describe('create', () => {
+  describe('create', () => {
     beforeEach(() => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] }) // profissional da triagem existe
@@ -117,7 +131,11 @@ describe('create', () => {
     });
 
     it('ignora os dados do responsável legal quando a categoria é adulto', async () => {
-      await service.create({ ...dtoCrianca, categoria: CategoriaEtaria.ADULTO, dataNascimento: nascidoComIdade(30), } as any);
+      await service.create({
+        ...dtoCrianca,
+        categoria: CategoriaEtaria.ADULTO,
+        dataNascimento: nascidoComIdade(30),
+      } as any);
 
       const insert = mockClient.query.mock.calls.find((c) =>
         String(c[0]).includes('INSERT INTO dados_familiares'),
@@ -128,7 +146,11 @@ describe('create', () => {
     it('descarta a quantidade de filhos quando possuiFilhos é false', async () => {
       await service.create({
         ...dtoCrianca,
-        dadosFamiliares: { ...dadosFamiliares, possuiFilhos: false, qtdMeninas: 3 },
+        dadosFamiliares: {
+          ...dadosFamiliares,
+          possuiFilhos: false,
+          qtdMeninas: 3,
+        },
       } as any);
 
       const insert = mockClient.query.mock.calls.find((c) =>
@@ -139,12 +161,16 @@ describe('create', () => {
 
     it('faz ROLLBACK e libera a conexão quando algo falha no meio da transação', async () => {
       mockClient.query.mockImplementation(async (sql: string) => {
-        if (sql.includes('INSERT INTO pacientes_tea')) return { rows: [{ id: 'p1' }] };
-        if (sql.includes('INSERT INTO dados_familiares')) throw new Error('falha no banco');
+        if (sql.includes('INSERT INTO pacientes_tea'))
+          return { rows: [{ id: 'p1' }] };
+        if (sql.includes('INSERT INTO dados_familiares'))
+          throw new Error('falha no banco');
         return { rows: [] };
       });
 
-      await expect(service.create(dtoCrianca as any)).rejects.toThrow('falha no banco');
+      await expect(service.create(dtoCrianca as any)).rejects.toThrow(
+        'falha no banco',
+      );
 
       expect(comandosExecutados()).toContain('ROLLBACK');
       expect(comandosExecutados()).not.toContain('COMMIT');
@@ -159,24 +185,30 @@ describe('create', () => {
         return { rows: [] };
       });
 
-      await expect(service.create(dtoCrianca as any)).rejects.toThrow(ConflictException);
+      await expect(service.create(dtoCrianca as any)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
-   describe('create - validações antes de gravar', () => {
+  describe('create - validações antes de gravar', () => {
     it('lança ConflictException se o CPF já estiver cadastrado (RN1)', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] })
         .mockResolvedValueOnce({ rows: [{ id: 'existente' }] });
 
-      await expect(service.create(dtoCrianca as any)).rejects.toThrow(ConflictException);
+      await expect(service.create(dtoCrianca as any)).rejects.toThrow(
+        ConflictException,
+      );
       expect(mockPool.connect).not.toHaveBeenCalled();
     });
 
     it('lança BadRequestException se o profissional da triagem não existir ou estiver inativo (RN6)', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
-      await expect(service.create(dtoCrianca as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoCrianca as any)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPool.connect).not.toHaveBeenCalled();
     });
 
@@ -205,15 +237,22 @@ describe('create', () => {
       [CategoriaEtaria.ADULTO, 59],
       [CategoriaEtaria.IDOSO, 60],
       [CategoriaEtaria.IDOSO, 90],
-    ])('aceita a categoria %s para quem tem %i anos', async (categoria, idade) => {
-      mockPool.query
-        .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] }) // profissional da triagem existe
-        .mockResolvedValueOnce({ rows: [] }); // CPF livre
+    ])(
+      'aceita a categoria %s para quem tem %i anos',
+      async (categoria, idade) => {
+        mockPool.query
+          .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] }) // profissional da triagem existe
+          .mockResolvedValueOnce({ rows: [] }); // CPF livre
 
-      await expect(
-        service.create({ ...dtoCrianca, categoria, dataNascimento: nascidoComIdade(idade) } as any),
-      ).resolves.toBeDefined();
-    });
+        await expect(
+          service.create({
+            ...dtoCrianca,
+            categoria,
+            dataNascimento: nascidoComIdade(idade),
+          } as any),
+        ).resolves.toBeDefined();
+      },
+    );
 
     it.each([
       [CategoriaEtaria.CRIANCA, 12],
@@ -222,12 +261,19 @@ describe('create', () => {
       [CategoriaEtaria.ADULTO, 4],
       [CategoriaEtaria.ADULTO, 60],
       [CategoriaEtaria.IDOSO, 59],
-    ])('recusa a categoria %s para quem tem %i anos', async (categoria, idade) => {
-      await expect(
-        service.create({ ...dtoCrianca, categoria, dataNascimento: nascidoComIdade(idade) } as any),
-      ).rejects.toThrow(BadRequestException);
-      expect(mockPool.query).not.toHaveBeenCalled();
-    });
+    ])(
+      'recusa a categoria %s para quem tem %i anos',
+      async (categoria, idade) => {
+        await expect(
+          service.create({
+            ...dtoCrianca,
+            categoria,
+            dataNascimento: nascidoComIdade(idade),
+          } as any),
+        ).rejects.toThrow(BadRequestException);
+        expect(mockPool.query).not.toHaveBeenCalled();
+      },
+    );
   });
 
   // ---------- FIND ALL ----------
@@ -268,18 +314,26 @@ describe('create', () => {
     it('filtra por número de cadastro e categoria ao mesmo tempo', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
-      await service.findAll({ numeroCadastro: 5, categoria: CategoriaEtaria.IDOSO });
+      await service.findAll({
+        numeroCadastro: 5,
+        categoria: CategoriaEtaria.IDOSO,
+      });
 
       expect(mockPool.query.mock.calls[0][0]).toContain('numero_cadastro = $1');
       expect(mockPool.query.mock.calls[0][0]).toContain('categoria = $2');
-      expect(mockPool.query.mock.calls[0][1]).toEqual([5, CategoriaEtaria.IDOSO]);
+      expect(mockPool.query.mock.calls[0][1]).toEqual([
+        5,
+        CategoriaEtaria.IDOSO,
+      ]);
     });
   });
 
   // ---------- FIND ONE ----------
   describe('findOne', () => {
     it('retorna o cadastro quando encontrado', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: '1', nome_completo: 'Fulano' }] });
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', nome_completo: 'Fulano' }],
+      });
 
       const resultado = await service.findOne('1');
 
@@ -290,7 +344,9 @@ describe('create', () => {
     it('lança NotFoundException se não existir (ou estiver removido)', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
-      await expect(service.findOne('inexistente')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -299,10 +355,12 @@ describe('create', () => {
     it('lança NotFoundException ao atualizar cadastro inexistente', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
-      await expect(service.update('x', { nivelSuporte: 3 } as any)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('x', { nivelSuporte: 3 } as any),
+      ).rejects.toThrow(NotFoundException);
     });
 
-        describe('regras condicionais no cadastro final', () => {
+    describe('regras condicionais no cadastro final', () => {
       const atualBase = {
         id: '1',
         categoria: 'crianca',
@@ -317,20 +375,24 @@ describe('create', () => {
       };
 
       const houveUpdate = () =>
-        mockClient.query.mock.calls.some((c) => String(c[0]).startsWith('UPDATE pacientes_tea'));
+        mockClient.query.mock.calls.some((c) =>
+          String(c[0]).startsWith('UPDATE pacientes_tea'),
+        );
 
       it('recusa frequentaEscola true quando não há nome da instituição salvo', async () => {
         mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
 
-        await expect(service.update('1', { frequentaEscola: true } as any)).rejects.toThrow(
-          BadRequestException,
-        );
+        await expect(
+          service.update('1', { frequentaEscola: true } as any),
+        ).rejects.toThrow(BadRequestException);
         expect(mockPool.connect).not.toHaveBeenCalled();
       });
 
       it('aceita frequentaEscola true quando o nome já estava salvo', async () => {
         mockPool.query
-          .mockResolvedValueOnce({ rows: [{ ...atualBase, nome_instituicao: 'Escola Municipal' }] })
+          .mockResolvedValueOnce({
+            rows: [{ ...atualBase, nome_instituicao: 'Escola Municipal' }],
+          })
           .mockResolvedValueOnce({ rows: [{ id: '1' }] });
 
         await service.update('1', { frequentaEscola: true } as any);
@@ -341,37 +403,52 @@ describe('create', () => {
       it('recusa parecerEspecialista true sem parecerQuais', async () => {
         mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
 
-        await expect(service.update('1', { parecerEspecialista: true } as any)).rejects.toThrow(
-          BadRequestException,
-        );
+        await expect(
+          service.update('1', { parecerEspecialista: true } as any),
+        ).rejects.toThrow(BadRequestException);
       });
 
       it('recusa realizaTerapias true sem nenhuma terapia', async () => {
         mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
 
-        await expect(service.update('1', { realizaTerapias: true } as any)).rejects.toThrow(
-          BadRequestException,
-        );
+        await expect(
+          service.update('1', { realizaTerapias: true } as any),
+        ).rejects.toThrow(BadRequestException);
       });
 
       it('recusa a terapia "outros" sem terapiaOutros', async () => {
         mockPool.query.mockResolvedValueOnce({
-          rows: [{ ...atualBase, realiza_terapias: true, terapias: '{fisioterapia}' }],
+          rows: [
+            {
+              ...atualBase,
+              realiza_terapias: true,
+              terapias: '{fisioterapia}',
+            },
+          ],
         });
 
-        await expect(service.update('1', { terapias: ['outros'] } as any)).rejects.toThrow(
-          BadRequestException,
-        );
+        await expect(
+          service.update('1', { terapias: ['outros'] } as any),
+        ).rejects.toThrow(BadRequestException);
       });
 
       it('aceita a terapia "outros" quando terapiaOutros vem junto', async () => {
         mockPool.query
           .mockResolvedValueOnce({
-            rows: [{ ...atualBase, realiza_terapias: true, terapias: '{fisioterapia}' }],
+            rows: [
+              {
+                ...atualBase,
+                realiza_terapias: true,
+                terapias: '{fisioterapia}',
+              },
+            ],
           })
           .mockResolvedValueOnce({ rows: [{ id: '1' }] });
 
-        await service.update('1', { terapias: ['outros'], terapiaOutros: 'Musicoterapia' } as any);
+        await service.update('1', {
+          terapias: ['outros'],
+          terapiaOutros: 'Musicoterapia',
+        } as any);
 
         expect(houveUpdate()).toBe(true);
       });
@@ -380,7 +457,12 @@ describe('create', () => {
         mockPool.query
           .mockResolvedValueOnce({
             rows: [
-              { ...atualBase, realiza_terapias: true, terapias: '{outros}', terapia_outros: 'Musicoterapia' },
+              {
+                ...atualBase,
+                realiza_terapias: true,
+                terapias: '{outros}',
+                terapia_outros: 'Musicoterapia',
+              },
             ],
           })
           .mockResolvedValueOnce({ rows: [{ id: '1' }] });
@@ -395,7 +477,11 @@ describe('create', () => {
           rows: [
             {
               ...atualBase,
-              dados_familiares: { possui_filhos: true, qtd_meninas: 2, qtd_meninos: null },
+              dados_familiares: {
+                possui_filhos: true,
+                qtd_meninas: 2,
+                qtd_meninos: null,
+              },
             },
           ],
         });
@@ -406,9 +492,15 @@ describe('create', () => {
       });
     });
 
-        it('recusa mudar a categoria para uma que não bate com a idade', async () => {
+    it('recusa mudar a categoria para uma que não bate com a idade', async () => {
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: '1', categoria: 'crianca', data_nascimento: nascidoComIdade(10) }],
+        rows: [
+          {
+            id: '1',
+            categoria: 'crianca',
+            data_nascimento: nascidoComIdade(10),
+          },
+        ],
       });
 
       await expect(
@@ -418,7 +510,13 @@ describe('create', () => {
 
     it('recusa mudar a data de nascimento para uma que não bate com a categoria', async () => {
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ id: '1', categoria: 'adulto', data_nascimento: nascidoComIdade(30) }],
+        rows: [
+          {
+            id: '1',
+            categoria: 'adulto',
+            data_nascimento: nascidoComIdade(30),
+          },
+        ],
       });
 
       await expect(
@@ -429,7 +527,13 @@ describe('create', () => {
     it('aceita mudar a categoria e a data de nascimento juntas, quando batem', async () => {
       mockPool.query
         .mockResolvedValueOnce({
-          rows: [{ id: '1', categoria: 'crianca', data_nascimento: nascidoComIdade(8) }],
+          rows: [
+            {
+              id: '1',
+              categoria: 'crianca',
+              data_nascimento: nascidoComIdade(8),
+            },
+          ],
         })
         .mockResolvedValueOnce({ rows: [{ id: '1' }] });
 
@@ -439,9 +543,13 @@ describe('create', () => {
         responsavelLegal: dtoCrianca.responsavelLegal,
       } as any);
 
-      expect(comandosExecutados().some((sql) => sql.startsWith('UPDATE pacientes_tea'))).toBe(true);
+      expect(
+        comandosExecutados().some((sql) =>
+          sql.startsWith('UPDATE pacientes_tea'),
+        ),
+      ).toBe(true);
     });
-    
+
     it('atualiza apenas os campos enviados', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] }) // findOne inicial
@@ -449,7 +557,9 @@ describe('create', () => {
 
       const resultado = await service.update('1', { nivelSuporte: 3 } as any);
 
-      const updates = comandosExecutados().filter((sql) => sql.startsWith('UPDATE'));
+      const updates = comandosExecutados().filter((sql) =>
+        sql.startsWith('UPDATE'),
+      );
       expect(updates).toHaveLength(1);
       expect(updates[0]).toContain('UPDATE pacientes_tea');
       expect(updates[0]).toContain('nivel_suporte = $1');
@@ -457,7 +567,9 @@ describe('create', () => {
     });
 
     it('não abre transação quando não há nada para atualizar', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] });
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', categoria: 'crianca' }],
+      });
 
       const resultado = await service.update('1', {} as any);
 
@@ -472,19 +584,25 @@ describe('create', () => {
 
       await service.update('1', { frequentaEscola: false } as any);
 
-      const upd = mockClient.query.mock.calls.find((c) => String(c[0]).startsWith('UPDATE pacientes_tea'));
+      const upd = mockClient.query.mock.calls.find((c) =>
+        String(c[0]).startsWith('UPDATE pacientes_tea'),
+      );
       expect(upd?.[0]).toContain('nome_instituicao = $');
       expect(upd?.[1]).toContain(null);
     });
 
     it('zera os dados do responsável legal quando a categoria passa a ser adulto', async () => {
       mockPool.query
-        .mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'adolescente' }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: '1', categoria: 'adolescente' }],
+        })
         .mockResolvedValueOnce({ rows: [{ id: '1' }] });
 
       await service.update('1', { categoria: CategoriaEtaria.ADULTO } as any);
 
-      const upd = mockClient.query.mock.calls.find((c) => String(c[0]).startsWith('UPDATE dados_familiares'));
+      const upd = mockClient.query.mock.calls.find((c) =>
+        String(c[0]).startsWith('UPDATE dados_familiares'),
+      );
       expect(upd?.[0]).toContain('responsavel_nome = $');
       expect(upd?.[1]).toEqual([null, null, null, null, '1']);
     });
@@ -494,15 +612,19 @@ describe('create', () => {
         .mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] })
         .mockResolvedValueOnce({ rows: [{ id: '2' }] });
 
-      await expect(service.update('1', { cpf: '52998224725' } as any)).rejects.toThrow(ConflictException);
+      await expect(
+        service.update('1', { cpf: '52998224725' } as any),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('lança BadRequestException para data de nascimento futura', async () => {
-      mockPool.query.mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] });
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', categoria: 'crianca' }],
+      });
 
-      await expect(service.update('1', { dataNascimento: '2999-01-01' } as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.update('1', { dataNascimento: '2999-01-01' } as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

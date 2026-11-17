@@ -38,7 +38,8 @@ describe('CreatePacienteTeaDto', () => {
     },
   };
 
-  const validar = (dados: object) => validate(plainToInstance(CreatePacienteTeaDto, dados));
+  const validar = (dados: object) =>
+    validate(plainToInstance(CreatePacienteTeaDto, dados));
   const temErro = (erros: ValidationError[], propriedade: string) =>
     erros.some((erro) => erro.property === propriedade);
 
@@ -47,7 +48,11 @@ describe('CreatePacienteTeaDto', () => {
   });
 
   it('aceita adulto sem responsável legal', async () => {
-    const erros = await validar({ ...dtoValido, categoria: 'adulto', responsavelLegal: undefined });
+    const erros = await validar({
+      ...dtoValido,
+      categoria: 'adulto',
+      responsavelLegal: undefined,
+    });
     expect(erros).toHaveLength(0);
   });
 
@@ -55,14 +60,34 @@ describe('CreatePacienteTeaDto', () => {
     ['categoria inválida', { categoria: 'jovem' }, 'categoria'],
     ['CPF inválido', { cpf: '12345678900' }, 'cpf'],
     ['gênero inválido', { genero: 'x' }, 'genero'],
-    ['data de nascimento em formato errado', { dataNascimento: '10/05/2018' }, 'dataNascimento'],
-    ['data de nascimento inexistente', { dataNascimento: '2018-02-30' }, 'dataNascimento'],
+    [
+      'data de nascimento em formato errado',
+      { dataNascimento: '10/05/2018' },
+      'dataNascimento',
+    ],
+    [
+      'data de nascimento inexistente',
+      { dataNascimento: '2018-02-30' },
+      'dataNascimento',
+    ],
     ['nível de suporte 4', { nivelSuporte: 4 }, 'nivelSuporte'],
     ['nível de suporte 0', { nivelSuporte: 0 }, 'nivelSuporte'],
-    ['cartão do SUS com 14 dígitos', { numeroCartaoSus: '12345678901234' }, 'numeroCartaoSus'],
+    [
+      'cartão do SUS com 14 dígitos',
+      { numeroCartaoSus: '12345678901234' },
+      'numeroCartaoSus',
+    ],
     ['nome vazio', { nomeCompleto: '' }, 'nomeCompleto'],
-    ['frequentaEscola que não é booleano', { frequentaEscola: 'sim' }, 'frequentaEscola'],
-    ['id de triagem que não é UUID', { responsavelTriagemId: '123' }, 'responsavelTriagemId'],
+    [
+      'frequentaEscola que não é booleano',
+      { frequentaEscola: 'sim' },
+      'frequentaEscola',
+    ],
+    [
+      'id de triagem que não é UUID',
+      { responsavelTriagemId: '123' },
+      'responsavelTriagemId',
+    ],
   ])('rejeita %s', async (_descricao, alteracao, propriedade) => {
     const erros = await validar({ ...dtoValido, ...alteracao });
     expect(temErro(erros, propriedade)).toBe(true);
@@ -80,17 +105,29 @@ describe('CreatePacienteTeaDto', () => {
     });
 
     it('exige ao menos uma terapia quando realizaTerapias é true', async () => {
-      const erros = await validar({ ...dtoValido, realizaTerapias: true, terapias: [] });
+      const erros = await validar({
+        ...dtoValido,
+        realizaTerapias: true,
+        terapias: [],
+      });
       expect(temErro(erros, 'terapias')).toBe(true);
     });
 
     it('rejeita terapia fora da lista', async () => {
-      const erros = await validar({ ...dtoValido, realizaTerapias: true, terapias: ['reiki'] });
+      const erros = await validar({
+        ...dtoValido,
+        realizaTerapias: true,
+        terapias: ['reiki'],
+      });
       expect(temErro(erros, 'terapias')).toBe(true);
     });
 
     it('exige terapiaOutros quando a terapia "outros" é marcada', async () => {
-      const erros = await validar({ ...dtoValido, realizaTerapias: true, terapias: ['outros'] });
+      const erros = await validar({
+        ...dtoValido,
+        realizaTerapias: true,
+        terapias: ['outros'],
+      });
       expect(temErro(erros, 'terapiaOutros')).toBe(true);
     });
 
@@ -106,12 +143,19 @@ describe('CreatePacienteTeaDto', () => {
 
   describe('responsável legal e dados familiares', () => {
     it('exige responsável legal para criança', async () => {
-      const erros = await validar({ ...dtoValido, responsavelLegal: undefined });
+      const erros = await validar({
+        ...dtoValido,
+        responsavelLegal: undefined,
+      });
       expect(temErro(erros, 'responsavelLegal')).toBe(true);
     });
 
     it('exige responsável legal para adolescente', async () => {
-      const erros = await validar({ ...dtoValido, categoria: 'adolescente', responsavelLegal: undefined });
+      const erros = await validar({
+        ...dtoValido,
+        categoria: 'adolescente',
+        responsavelLegal: undefined,
+      });
       expect(temErro(erros, 'responsavelLegal')).toBe(true);
     });
 

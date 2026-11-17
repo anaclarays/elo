@@ -34,11 +34,17 @@ export class PacientesTeaController {
   findAll(
     @Query('cpf') cpf?: string,
     @Query('nome') nome?: string,
-    @Query('numeroCadastro', new ParseIntPipe({ optional: true })) numeroCadastro?: number,
+    @Query('numeroCadastro', new ParseIntPipe({ optional: true }))
+    numeroCadastro?: number,
     @Query('categoria', new ParseEnumPipe(CategoriaEtaria, { optional: true }))
     categoria?: CategoriaEtaria,
   ) {
-    return this.pacientesTeaService.findAll({ cpf, nome, numeroCadastro, categoria });
+    return this.pacientesTeaService.findAll({
+      cpf,
+      nome,
+      numeroCadastro,
+      categoria,
+    });
   }
 
   @Get(':id')
@@ -47,7 +53,10 @@ export class PacientesTeaController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePacienteTeaDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePacienteTeaDto,
+  ) {
     return this.pacientesTeaService.update(id, dto);
   }
 

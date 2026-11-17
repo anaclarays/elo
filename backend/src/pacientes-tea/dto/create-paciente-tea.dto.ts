@@ -29,10 +29,12 @@ import {
   Terapia,
 } from '../enum/pacientes-tea.enum';
 
-// Data no formato AAAA-MM-DD e que exista de verdade no calendário 
+// Data no formato AAAA-MM-DD e que exista de verdade no calendário
 function IsDataIso(campo: string) {
   return applyDecorators(
-    Matches(/^\d{4}-\d{2}-\d{2}$/, { message: `${campo} deve estar no formato AAAA-MM-DD` }),
+    Matches(/^\d{4}-\d{2}-\d{2}$/, {
+      message: `${campo} deve estar no formato AAAA-MM-DD`,
+    }),
     IsISO8601({ strict: true }, { message: `${campo} inválida` }),
   );
 }
@@ -73,7 +75,9 @@ export class DadosFamiliaresDto {
   @IsNotEmpty()
   cidade: string;
 
-  @Matches(/^[A-Z]{2}$/, { message: 'estado deve ser a sigla da UF em maiúsculas (ex.: PE)' })
+  @Matches(/^[A-Z]{2}$/, {
+    message: 'estado deve ser a sigla da UF em maiúsculas (ex.: PE)',
+  })
   estado: string;
 
   @IsString()
@@ -120,7 +124,9 @@ export class DadosFamiliaresDto {
 }
 
 export class CreatePacienteTeaDto {
-  @IsEnum(CategoriaEtaria, { message: 'categoria deve ser: crianca, adolescente, adulto ou idoso' })
+  @IsEnum(CategoriaEtaria, {
+    message: 'categoria deve ser: crianca, adolescente, adulto ou idoso',
+  })
   categoria: CategoriaEtaria;
 
   @IsString()
@@ -145,7 +151,9 @@ export class CreatePacienteTeaDto {
 
   @ValidateIf((o) => o.frequentaEscola === true)
   @IsString()
-  @IsNotEmpty({ message: 'nomeInstituicao é obrigatório quando frequentaEscola é true' })
+  @IsNotEmpty({
+    message: 'nomeInstituicao é obrigatório quando frequentaEscola é true',
+  })
   nomeInstituicao?: string;
 
   @IsBoolean()
@@ -156,7 +164,9 @@ export class CreatePacienteTeaDto {
 
   @ValidateIf((o) => o.parecerEspecialista === true)
   @IsString()
-  @IsNotEmpty({ message: 'parecerQuais é obrigatório quando parecerEspecialista é true' })
+  @IsNotEmpty({
+    message: 'parecerQuais é obrigatório quando parecerEspecialista é true',
+  })
   parecerQuais?: string;
 
   @IsBoolean()
@@ -176,13 +186,19 @@ export class CreatePacienteTeaDto {
 
   @ValidateIf((o) => o.realizaTerapias === true)
   @IsArray()
-  @ArrayNotEmpty({ message: 'Informe ao menos uma terapia quando realizaTerapias é true' })
+  @ArrayNotEmpty({
+    message: 'Informe ao menos uma terapia quando realizaTerapias é true',
+  })
   @IsEnum(Terapia, { each: true, message: 'terapia inválida' })
   terapias?: Terapia[];
 
-  @ValidateIf((o) => Array.isArray(o.terapias) && o.terapias.includes(Terapia.OUTROS))
+  @ValidateIf(
+    (o) => Array.isArray(o.terapias) && o.terapias.includes(Terapia.OUTROS),
+  )
   @IsString()
-  @IsNotEmpty({ message: 'terapiaOutros é obrigatório quando a terapia "outros" é marcada' })
+  @IsNotEmpty({
+    message: 'terapiaOutros é obrigatório quando a terapia "outros" é marcada',
+  })
   terapiaOutros?: string;
 
   @IsOptional()
@@ -212,7 +228,9 @@ export class CreatePacienteTeaDto {
 
   // Obrigatório só para criança/adolescente (para adulto/idoso é ignorado)
   @ValidateIf((o) => CATEGORIAS_COM_RESPONSAVEL.includes(o.categoria))
-  @IsDefined({ message: 'responsavelLegal é obrigatório para criança/adolescente' })
+  @IsDefined({
+    message: 'responsavelLegal é obrigatório para criança/adolescente',
+  })
   @ValidateNested()
   @Type(() => ResponsavelLegalDto)
   responsavelLegal?: ResponsavelLegalDto;

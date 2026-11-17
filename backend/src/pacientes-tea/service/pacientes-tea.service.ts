@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../database/database.constants';
-import { CreatePacienteTeaDto, ResponsavelLegalDto } from '../dto/create-paciente-tea.dto';
+import {
+  CreatePacienteTeaDto,
+  ResponsavelLegalDto,
+} from '../dto/create-paciente-tea.dto';
 import { UpdatePacienteTeaDto } from '../dto/update-pacientes-tea.dto';
 import {
   CATEGORIAS_COM_RESPONSAVEL,
@@ -15,19 +18,51 @@ import {
   Terapia,
 } from '../enum/pacientes-tea.enum';
 
-// Lista fixa de campos aceitos em cada tabela 
+// Lista fixa de campos aceitos em cada tabela
 const CAMPOS_PACIENTE = [
-  'categoria', 'nomeCompleto', 'dataNascimento', 'rgOuCertidao', 'cpf', 'genero',
-  'frequentaEscola', 'nomeInstituicao', 'aguardaDiagnostico', 'parecerEspecialista',
-  'parecerQuais', 'laudoMedico', 'nivelSuporte', 'outrosDiagnosticos', 'realizaTerapias',
-  'terapias', 'terapiaOutros', 'medicacoes', 'alergias', 'ciptea', 'bpc',
-  'numeroCartaoSus', 'observacoes', 'responsavelTriagemId',
+  'categoria',
+  'nomeCompleto',
+  'dataNascimento',
+  'rgOuCertidao',
+  'cpf',
+  'genero',
+  'frequentaEscola',
+  'nomeInstituicao',
+  'aguardaDiagnostico',
+  'parecerEspecialista',
+  'parecerQuais',
+  'laudoMedico',
+  'nivelSuporte',
+  'outrosDiagnosticos',
+  'realizaTerapias',
+  'terapias',
+  'terapiaOutros',
+  'medicacoes',
+  'alergias',
+  'ciptea',
+  'bpc',
+  'numeroCartaoSus',
+  'observacoes',
+  'responsavelTriagemId',
 ] as const;
 
 const CAMPOS_FAMILIARES = [
-  'estadoCivil', 'endereco', 'numero', 'bairro', 'cidade', 'estado', 'contato', 'email',
-  'nomeConjuge', 'possuiFilhos', 'qtdMeninas', 'qtdMeninos', 'numPessoasCasa',
-  'rendaFamiliar', 'recebeBolsaFamilia', 'recebeOutroBeneficio',
+  'estadoCivil',
+  'endereco',
+  'numero',
+  'bairro',
+  'cidade',
+  'estado',
+  'contato',
+  'email',
+  'nomeConjuge',
+  'possuiFilhos',
+  'qtdMeninas',
+  'qtdMeninos',
+  'numPessoasCasa',
+  'rendaFamiliar',
+  'recebeBolsaFamilia',
+  'recebeOutroBeneficio',
 ] as const;
 
 const FAIXAS_ETARIAS: Record<CategoriaEtaria, { min: number; max: number }> = {
@@ -40,14 +75,19 @@ const FAIXAS_ETARIAS: Record<CategoriaEtaria, { min: number; max: number }> = {
 type Campos = Record<string, any>;
 
 const apenasDigitos = (texto: string) => texto.replace(/\D/g, '');
-const paraSnake = (texto: string) => texto.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
+const paraSnake = (texto: string) =>
+  texto.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
 
-const paraCamel = (texto: string) => texto.replace(/_([a-z])/g, (_, letra) => letra.toUpperCase());
+const paraCamel = (texto: string) =>
+  texto.replace(/_([a-z])/g, (_, letra) => letra.toUpperCase());
 
 // snake_case (banco) -> camelCase (regras de negócio), só no primeiro nível
 function camelizar(origem?: Campos | null): Campos {
   return Object.fromEntries(
-    Object.entries(origem ?? {}).map(([chave, valor]) => [paraCamel(chave), valor]),
+    Object.entries(origem ?? {}).map(([chave, valor]) => [
+      paraCamel(chave),
+      valor,
+    ]),
   );
 }
 
@@ -58,7 +98,6 @@ function paraLista(valor: unknown): string[] {
     return valor.slice(1, -1).split(',').filter(Boolean);
   }
   return [];
-
 }
 
 function calcularIdade(dataNascimento: string): number {
@@ -66,7 +105,8 @@ function calcularIdade(dataNascimento: string): number {
   const hoje = new Date();
   let idade = hoje.getFullYear() - ano;
   const aindaNaoFezAniversario =
-    hoje.getMonth() + 1 < mes || (hoje.getMonth() + 1 === mes && hoje.getDate() < dia);
+    hoje.getMonth() + 1 < mes ||
+    (hoje.getMonth() + 1 === mes && hoje.getDate() < dia);
   if (aindaNaoFezAniversario) idade--;
   return idade;
 }
@@ -79,8 +119,7 @@ const comoData = (valor: unknown): string | undefined =>
       ? valor.slice(0, 10)
       : undefined;
 
-
-// Copia só os campos permitidos que foram realmente enviados 
+// Copia só os campos permitidos que foram realmente enviados
 function selecionar(origem: any, permitidos: readonly string[]): Campos {
   const resultado: Campos = {};
   for (const campo of permitidos) {
@@ -99,7 +138,12 @@ function montarInsert(tabela: string, campos: Campos) {
   };
 }
 
-function montarUpdate(tabela: string, campos: Campos, colunaFiltro: string, valorFiltro: string) {
+function montarUpdate(
+  tabela: string,
+  campos: Campos,
+  colunaFiltro: string,
+  valorFiltro: string,
+) {
   const chaves = Object.keys(campos);
   const sets = chaves.map((chave, i) => `${paraSnake(chave)} = $${i + 1}`);
   sets.push('updated_at = now()');
@@ -122,20 +166,31 @@ export class PacientesTeaService {
     await this.garantirCpfDisponivel(apenasDigitos(dto.cpf));
 
     const campos = this.normalizarPaciente(selecionar(dto, CAMPOS_PACIENTE));
-    const familiares = this.normalizarFamiliares(selecionar(dto.dadosFamiliares, CAMPOS_FAMILIARES));
-    const responsavel = this.camposResponsavel(dto.categoria, dto.responsavelLegal);
+    const familiares = this.normalizarFamiliares(
+      selecionar(dto.dadosFamiliares, CAMPOS_FAMILIARES),
+    );
+    const responsavel = this.camposResponsavel(
+      dto.categoria,
+      dto.responsavelLegal,
+    );
 
     // As duas tabelas são gravadas juntas: ou grava tudo, ou não grava nada
     return this.executarEmTransacao(async (client) => {
       const inserirPaciente = montarInsert('pacientes_tea', campos);
-      const paciente = await client.query(inserirPaciente.sql, inserirPaciente.valores);
+      const paciente = await client.query(
+        inserirPaciente.sql,
+        inserirPaciente.valores,
+      );
 
       const inserirFamiliares = montarInsert('dados_familiares', {
         pacienteId: paciente.rows[0].id,
         ...familiares,
         ...responsavel,
       });
-      const dadosFamiliares = await client.query(inserirFamiliares.sql, inserirFamiliares.valores);
+      const dadosFamiliares = await client.query(
+        inserirFamiliares.sql,
+        inserirFamiliares.valores,
+      );
 
       return { ...paciente.rows[0], dados_familiares: dadosFamiliares.rows[0] };
     });
@@ -207,7 +262,8 @@ export class PacientesTeaService {
       );
     }
     if (dto.cpf) await this.garantirCpfDisponivel(apenasDigitos(dto.cpf), id);
-    if (dto.responsavelTriagemId) await this.garantirTriagemValida(dto.responsavelTriagemId);
+    if (dto.responsavelTriagemId)
+      await this.garantirTriagemValida(dto.responsavelTriagemId);
 
     const campos = this.normalizarPaciente(selecionar(dto, CAMPOS_PACIENTE));
     const categoriaFinal: CategoriaEtaria = dto.categoria ?? atual.categoria;
@@ -216,17 +272,22 @@ export class PacientesTeaService {
         ? this.camposResponsavel(categoriaFinal, dto.responsavelLegal)
         : {};
     const familiares = {
-      ...this.normalizarFamiliares(selecionar(dto.dadosFamiliares, CAMPOS_FAMILIARES)),
+      ...this.normalizarFamiliares(
+        selecionar(dto.dadosFamiliares, CAMPOS_FAMILIARES),
+      ),
       ...responsavel,
     };
 
-    if (Object.keys(campos).length === 0 && Object.keys(familiares).length === 0) {
+    if (
+      Object.keys(campos).length === 0 &&
+      Object.keys(familiares).length === 0
+    ) {
       return atual; // nada para atualizar
     }
-        // Valida as regras "se X, então Y" no cadastro como ele ficará depois da atualização
+    // Valida as regras "se X, então Y" no cadastro como ele ficará depois da atualização
     // (dados atuais + mudanças), e não apenas no que veio na requisição
     this.validarRegrasCondicionais({ ...camelizar(atual), ...campos });
-    this.validarFilhos({ ...camelizar(atual.dados_familiares), ...familiares })
+    this.validarFilhos({ ...camelizar(atual.dados_familiares), ...familiares });
 
     await this.executarEmTransacao(async (client) => {
       if (Object.keys(campos).length > 0) {
@@ -234,7 +295,12 @@ export class PacientesTeaService {
         await client.query(upd.sql, upd.valores);
       }
       if (Object.keys(familiares).length > 0) {
-        const upd = montarUpdate('dados_familiares', familiares, 'paciente_id', id);
+        const upd = montarUpdate(
+          'dados_familiares',
+          familiares,
+          'paciente_id',
+          id,
+        );
         await client.query(upd.sql, upd.valores);
       }
     });
@@ -262,26 +328,35 @@ export class PacientesTeaService {
 
   // A categoria informada precisa bater com a idade calculada a partir da data de nascimento
   private validarCategoriaComIdade(
-  categoria?: CategoriaEtaria,
-  dataNascimento?: string,
-) {
-  if (!categoria || !dataNascimento) return;
+    categoria?: CategoriaEtaria,
+    dataNascimento?: string,
+  ) {
+    if (!categoria || !dataNascimento) return;
 
-  const idade = calcularIdade(dataNascimento);
-  const { min, max } = FAIXAS_ETARIAS[categoria];
+    const idade = calcularIdade(dataNascimento);
+    const { min, max } = FAIXAS_ETARIAS[categoria];
 
-  if (idade < min || idade > max) {
-    throw new BadRequestException(
-      `A categoria "${categoria}" não corresponde à idade informada (${idade} anos). ` +
-        'Faixas: criança 0 a 11, adolescente 12 a 17, adulto 18 a 59, idoso 60 ou mais.',
-    );
+    if (idade < min || idade > max) {
+      throw new BadRequestException(
+        `A categoria "${categoria}" não corresponde à idade informada (${idade} anos). ` +
+          'Faixas: criança 0 a 11, adolescente 12 a 17, adulto 18 a 59, idoso 60 ou mais.',
+      );
+    }
   }
-}
 
   // Se possui filhos, precisa informar quantos (meninas e/ou meninos)
-  private validarFilhos(dados?: { possuiFilhos?: boolean; qtdMeninas?: number; qtdMeninos?: number }) {
-    if (dados?.possuiFilhos === true && (dados.qtdMeninas ?? 0) + (dados.qtdMeninos ?? 0) <= 0) {
-      throw new BadRequestException('Informe a quantidade de filhos (meninas e/ou meninos)');
+  private validarFilhos(dados?: {
+    possuiFilhos?: boolean;
+    qtdMeninas?: number;
+    qtdMeninos?: number;
+  }) {
+    if (
+      dados?.possuiFilhos === true &&
+      (dados.qtdMeninas ?? 0) + (dados.qtdMeninos ?? 0) <= 0
+    ) {
+      throw new BadRequestException(
+        'Informe a quantidade de filhos (meninas e/ou meninos)',
+      );
     }
   }
 
@@ -292,12 +367,14 @@ export class PacientesTeaService {
       [profissionalId],
     );
     if (resultado.rows.length === 0) {
-      throw new BadRequestException('Profissional responsável pela triagem não encontrado ou inativo');
+      throw new BadRequestException(
+        'Profissional responsável pela triagem não encontrado ou inativo',
+      );
     }
   }
 
   // RN1: identificador único (CPF)
-private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
+  private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
     const resultado = await this.pool.query(
       `SELECT id FROM pacientes_tea
        WHERE cpf = $1 AND ativo = true AND ($2::uuid IS NULL OR id != $2::uuid)`,
@@ -316,7 +393,10 @@ private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
     if (campos.realizaTerapias === false) {
       campos.terapias = null;
       campos.terapiaOutros = null;
-    } else if (Array.isArray(campos.terapias) && !campos.terapias.includes(Terapia.OUTROS)) {
+    } else if (
+      Array.isArray(campos.terapias) &&
+      !campos.terapias.includes(Terapia.OUTROS)
+    ) {
       campos.terapiaOutros = null;
     }
     return campos;
@@ -333,17 +413,29 @@ private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
     return campos;
   }
 
-    // Regras "se X, então Y" aplicadas ao cadastro inteiro (usadas na atualização)
+  // Regras "se X, então Y" aplicadas ao cadastro inteiro (usadas na atualização)
   private validarRegrasCondicionais(cadastro: Campos) {
-    if (cadastro.frequentaEscola === true && !cadastro.nomeInstituicao?.trim()) {
-      throw new BadRequestException('Informe o nome da instituição quando a pessoa frequenta escola');
+    if (
+      cadastro.frequentaEscola === true &&
+      !cadastro.nomeInstituicao?.trim()
+    ) {
+      throw new BadRequestException(
+        'Informe o nome da instituição quando a pessoa frequenta escola',
+      );
     }
-    if (cadastro.parecerEspecialista === true && !cadastro.parecerQuais?.trim()) {
-      throw new BadRequestException('Informe quais pareceres de especialista foram emitidos');
+    if (
+      cadastro.parecerEspecialista === true &&
+      !cadastro.parecerQuais?.trim()
+    ) {
+      throw new BadRequestException(
+        'Informe quais pareceres de especialista foram emitidos',
+      );
     }
     const terapias = paraLista(cadastro.terapias);
     if (cadastro.realizaTerapias === true && terapias.length === 0) {
-      throw new BadRequestException('Informe ao menos uma terapia quando realiza terapias');
+      throw new BadRequestException(
+        'Informe ao menos uma terapia quando realiza terapias',
+      );
     }
     if (terapias.includes(Terapia.OUTROS) && !cadastro.terapiaOutros?.trim()) {
       throw new BadRequestException('Descreva a terapia "outros"');
@@ -351,7 +443,10 @@ private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
   }
 
   // Responsável legal só existe para criança/adolescente; para adulto/idoso os campos ficam nulos
-  private camposResponsavel(categoria: CategoriaEtaria, responsavel?: ResponsavelLegalDto): Campos {
+  private camposResponsavel(
+    categoria: CategoriaEtaria,
+    responsavel?: ResponsavelLegalDto,
+  ): Campos {
     if (!CATEGORIAS_COM_RESPONSAVEL.includes(categoria)) {
       return {
         responsavelNome: null,
@@ -369,7 +464,9 @@ private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
     };
   }
 
-  private async executarEmTransacao<T>(operacao: (client: PoolClient) => Promise<T>): Promise<T> {
+  private async executarEmTransacao<T>(
+    operacao: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
