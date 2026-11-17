@@ -17,12 +17,12 @@ CREATE TYPE terapia_enum AS ENUM (
 CREATE TABLE pacientes_tea (
   id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   numero_cadastro        INTEGER GENERATED ALWAYS AS IDENTITY UNIQUE,
-  data_cadastro          DATE NOT NULL DEFAULT CURRENT_DATE,
+  data_cadastro           DATE NOT NULL DEFAULT (now() AT TIME ZONE 'America/Recife')::date,
   categoria              categoria_etaria_enum NOT NULL,
   nome_completo          VARCHAR(255) NOT NULL,
   data_nascimento        DATE NOT NULL,
   rg_ou_certidao         VARCHAR(50) NOT NULL,
-  cpf                    CHAR(11) NOT NULL UNIQUE,
+  cpf                    CHAR(11) NOT NULL,
   genero                 genero_enum NOT NULL,
   frequenta_escola       BOOLEAN NOT NULL,
   nome_instituicao       VARCHAR(255),
@@ -46,6 +46,8 @@ CREATE TABLE pacientes_tea (
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX ux_pacientes_tea_cpf_ativo ON pacientes_tea (cpf) WHERE ativo;
 
 -- Responsável legal (só criança/adolescente) + dados familiares e socioeconômicos
 CREATE TABLE dados_familiares (
