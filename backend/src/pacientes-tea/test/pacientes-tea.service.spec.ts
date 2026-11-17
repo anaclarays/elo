@@ -21,10 +21,21 @@ describe('PacientesTeaService', () => {
     numPessoasCasa: 4,
   };
 
+function nascidoComIdade(idade: number): string {
+  const hoje = new Date();
+  const nascimento = new Date(
+    hoje.getFullYear() - idade,
+    hoje.getMonth(),
+    hoje.getDate(),
+  );
+
+  return nascimento.toISOString().slice(0, 10);
+}
+
   const dtoCrianca = {
     categoria: CategoriaEtaria.CRIANCA,
     nomeCompleto: 'Paciente Teste',
-    dataNascimento: '2018-05-10',
+    dataNascimento: nascidoComIdade(8),
     rgOuCertidao: '1234567',
     cpf: '111.444.777-35',
     genero: Genero.MASCULINO,
@@ -106,7 +117,7 @@ describe('create', () => {
     });
 
     it('ignora os dados do responsável legal quando a categoria é adulto', async () => {
-      await service.create({ ...dtoCrianca, categoria: CategoriaEtaria.ADULTO } as any);
+      await service.create({ ...dtoCrianca, categoria: CategoriaEtaria.ADULTO, dataNascimento: nascidoComIdade(30), } as any);
 
       const insert = mockClient.query.mock.calls.find((c) =>
         String(c[0]).includes('INSERT INTO dados_familiares'),
@@ -152,7 +163,7 @@ describe('create', () => {
     });
   });
 
-  describe('create - validações antes de gravar', () => {
+   describe('create - validações antes de gravar', () => {
     it('lança ConflictException se o CPF já estiver cadastrado (RN1)', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] })
@@ -183,6 +194,39 @@ describe('create', () => {
           dadosFamiliares: { ...dadosFamiliares, possuiFilhos: true },
         } as any),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it.each([
+      [CategoriaEtaria.CRIANCA, 0],
+      [CategoriaEtaria.CRIANCA, 11],
+      [CategoriaEtaria.ADOLESCENTE, 12],
+      [CategoriaEtaria.ADOLESCENTE, 17],
+      [CategoriaEtaria.ADULTO, 18],
+      [CategoriaEtaria.ADULTO, 59],
+      [CategoriaEtaria.IDOSO, 60],
+      [CategoriaEtaria.IDOSO, 90],
+    ])('aceita a categoria %s para quem tem %i anos', async (categoria, idade) => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [{ id: 'triagem' }] }) // profissional da triagem existe
+        .mockResolvedValueOnce({ rows: [] }); // CPF livre
+
+      await expect(
+        service.create({ ...dtoCrianca, categoria, dataNascimento: nascidoComIdade(idade) } as any),
+      ).resolves.toBeDefined();
+    });
+
+    it.each([
+      [CategoriaEtaria.CRIANCA, 12],
+      [CategoriaEtaria.ADOLESCENTE, 11],
+      [CategoriaEtaria.ADOLESCENTE, 18],
+      [CategoriaEtaria.ADULTO, 4],
+      [CategoriaEtaria.ADULTO, 60],
+      [CategoriaEtaria.IDOSO, 59],
+    ])('recusa a categoria %s para quem tem %i anos', async (categoria, idade) => {
+      await expect(
+        service.create({ ...dtoCrianca, categoria, dataNascimento: nascidoComIdade(idade) } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPool.query).not.toHaveBeenCalled();
     });
   });
 
@@ -362,6 +406,42 @@ describe('create', () => {
       });
     });
 
+        it('recusa mudar a categoria para uma que não bate com a idade', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', categoria: 'crianca', data_nascimento: nascidoComIdade(10) }],
+      });
+
+      await expect(
+        service.update('1', { categoria: CategoriaEtaria.ADULTO } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('recusa mudar a data de nascimento para uma que não bate com a categoria', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', categoria: 'adulto', data_nascimento: nascidoComIdade(30) }],
+      });
+
+      await expect(
+        service.update('1', { dataNascimento: nascidoComIdade(5) } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('aceita mudar a categoria e a data de nascimento juntas, quando batem', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rows: [{ id: '1', categoria: 'crianca', data_nascimento: nascidoComIdade(8) }],
+        })
+        .mockResolvedValueOnce({ rows: [{ id: '1' }] });
+
+      await service.update('1', {
+        categoria: CategoriaEtaria.ADOLESCENTE,
+        dataNascimento: nascidoComIdade(14),
+        responsavelLegal: dtoCrianca.responsavelLegal,
+      } as any);
+
+      expect(comandosExecutados().some((sql) => sql.startsWith('UPDATE pacientes_tea'))).toBe(true);
+    });
+    
     it('atualiza apenas os campos enviados', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] }) // findOne inicial

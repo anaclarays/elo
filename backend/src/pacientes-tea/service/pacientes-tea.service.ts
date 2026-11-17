@@ -30,6 +30,13 @@ const CAMPOS_FAMILIARES = [
   'rendaFamiliar', 'recebeBolsaFamilia', 'recebeOutroBeneficio',
 ] as const;
 
+const FAIXAS_ETARIAS: Record<CategoriaEtaria, { min: number; max: number }> = {
+  [CategoriaEtaria.CRIANCA]: { min: 0, max: 11 },
+  [CategoriaEtaria.ADOLESCENTE]: { min: 12, max: 17 },
+  [CategoriaEtaria.ADULTO]: { min: 18, max: 59 },
+  [CategoriaEtaria.IDOSO]: { min: 60, max: 150 },
+};
+
 type Campos = Record<string, any>;
 
 const apenasDigitos = (texto: string) => texto.replace(/\D/g, '');
@@ -51,7 +58,27 @@ function paraLista(valor: unknown): string[] {
     return valor.slice(1, -1).split(',').filter(Boolean);
   }
   return [];
+
 }
+
+function calcularIdade(dataNascimento: string): number {
+  const [ano, mes, dia] = dataNascimento.split('-').map(Number);
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - ano;
+  const aindaNaoFezAniversario =
+    hoje.getMonth() + 1 < mes || (hoje.getMonth() + 1 === mes && hoje.getDate() < dia);
+  if (aindaNaoFezAniversario) idade--;
+  return idade;
+}
+
+// Aceita texto "AAAA-MM-DD" ou Date e devolve "AAAA-MM-DD"
+const comoData = (valor: unknown): string | undefined =>
+  valor instanceof Date
+    ? valor.toISOString().slice(0, 10)
+    : typeof valor === 'string'
+      ? valor.slice(0, 10)
+      : undefined;
+
 
 // Copia só os campos permitidos que foram realmente enviados 
 function selecionar(origem: any, permitidos: readonly string[]): Campos {
@@ -89,6 +116,7 @@ export class PacientesTeaService {
   // ---------- CREATE ----------
   async create(dto: CreatePacienteTeaDto) {
     this.validarDatas(dto.dataNascimento, dto.responsavelLegal?.dataNascimento);
+    this.validarCategoriaComIdade(dto.categoria, dto.dataNascimento);
     this.validarFilhos(dto.dadosFamiliares);
     await this.garantirTriagemValida(dto.responsavelTriagemId);
     await this.garantirCpfDisponivel(apenasDigitos(dto.cpf));
@@ -172,6 +200,12 @@ export class PacientesTeaService {
     const atual = await this.findOne(id);
 
     this.validarDatas(dto.dataNascimento, dto.responsavelLegal?.dataNascimento);
+    if (dto.categoria !== undefined || dto.dataNascimento !== undefined) {
+      this.validarCategoriaComIdade(
+        dto.categoria ?? atual.categoria,
+        dto.dataNascimento ?? comoData(atual.data_nascimento),
+      );
+    }
     if (dto.cpf) await this.garantirCpfDisponivel(apenasDigitos(dto.cpf), id);
     if (dto.responsavelTriagemId) await this.garantirTriagemValida(dto.responsavelTriagemId);
 
@@ -225,6 +259,24 @@ export class PacientesTeaService {
       throw new BadRequestException('Data de nascimento não pode ser futura');
     }
   }
+
+  // A categoria informada precisa bater com a idade calculada a partir da data de nascimento
+  private validarCategoriaComIdade(
+  categoria?: CategoriaEtaria,
+  dataNascimento?: string,
+) {
+  if (!categoria || !dataNascimento) return;
+
+  const idade = calcularIdade(dataNascimento);
+  const { min, max } = FAIXAS_ETARIAS[categoria];
+
+  if (idade < min || idade > max) {
+    throw new BadRequestException(
+      `A categoria "${categoria}" não corresponde à idade informada (${idade} anos). ` +
+        'Faixas: criança 0 a 11, adolescente 12 a 17, adulto 18 a 59, idoso 60 ou mais.',
+    );
+  }
+}
 
   // Se possui filhos, precisa informar quantos (meninas e/ou meninos)
   private validarFilhos(dados?: { possuiFilhos?: boolean; qtdMeninas?: number; qtdMeninos?: number }) {
