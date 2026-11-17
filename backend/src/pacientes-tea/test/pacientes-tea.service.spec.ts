@@ -258,6 +258,110 @@ describe('create', () => {
       await expect(service.update('x', { nivelSuporte: 3 } as any)).rejects.toThrow(NotFoundException);
     });
 
+        describe('regras condicionais no cadastro final', () => {
+      const atualBase = {
+        id: '1',
+        categoria: 'crianca',
+        frequenta_escola: false,
+        nome_instituicao: null,
+        parecer_especialista: false,
+        parecer_quais: null,
+        realiza_terapias: false,
+        terapias: null,
+        terapia_outros: null,
+        dados_familiares: null,
+      };
+
+      const houveUpdate = () =>
+        mockClient.query.mock.calls.some((c) => String(c[0]).startsWith('UPDATE pacientes_tea'));
+
+      it('recusa frequentaEscola true quando não há nome da instituição salvo', async () => {
+        mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
+
+        await expect(service.update('1', { frequentaEscola: true } as any)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockPool.connect).not.toHaveBeenCalled();
+      });
+
+      it('aceita frequentaEscola true quando o nome já estava salvo', async () => {
+        mockPool.query
+          .mockResolvedValueOnce({ rows: [{ ...atualBase, nome_instituicao: 'Escola Municipal' }] })
+          .mockResolvedValueOnce({ rows: [{ id: '1' }] });
+
+        await service.update('1', { frequentaEscola: true } as any);
+
+        expect(houveUpdate()).toBe(true);
+      });
+
+      it('recusa parecerEspecialista true sem parecerQuais', async () => {
+        mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
+
+        await expect(service.update('1', { parecerEspecialista: true } as any)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('recusa realizaTerapias true sem nenhuma terapia', async () => {
+        mockPool.query.mockResolvedValueOnce({ rows: [atualBase] });
+
+        await expect(service.update('1', { realizaTerapias: true } as any)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('recusa a terapia "outros" sem terapiaOutros', async () => {
+        mockPool.query.mockResolvedValueOnce({
+          rows: [{ ...atualBase, realiza_terapias: true, terapias: '{fisioterapia}' }],
+        });
+
+        await expect(service.update('1', { terapias: ['outros'] } as any)).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('aceita a terapia "outros" quando terapiaOutros vem junto', async () => {
+        mockPool.query
+          .mockResolvedValueOnce({
+            rows: [{ ...atualBase, realiza_terapias: true, terapias: '{fisioterapia}' }],
+          })
+          .mockResolvedValueOnce({ rows: [{ id: '1' }] });
+
+        await service.update('1', { terapias: ['outros'], terapiaOutros: 'Musicoterapia' } as any);
+
+        expect(houveUpdate()).toBe(true);
+      });
+
+      it('entende arrays de enum que o pg devolve como texto', async () => {
+        mockPool.query
+          .mockResolvedValueOnce({
+            rows: [
+              { ...atualBase, realiza_terapias: true, terapias: '{outros}', terapia_outros: 'Musicoterapia' },
+            ],
+          })
+          .mockResolvedValueOnce({ rows: [{ id: '1' }] });
+
+        await service.update('1', { nivelSuporte: 2 } as any);
+
+        expect(houveUpdate()).toBe(true);
+      });
+
+      it('recusa zerar as quantidades de filhos quando possuiFilhos continua true', async () => {
+        mockPool.query.mockResolvedValueOnce({
+          rows: [
+            {
+              ...atualBase,
+              dados_familiares: { possui_filhos: true, qtd_meninas: 2, qtd_meninos: null },
+            },
+          ],
+        });
+
+        await expect(
+          service.update('1', { dadosFamiliares: { qtdMeninas: 0 } } as any),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+
     it('atualiza apenas os campos enviados', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [{ id: '1', categoria: 'crianca' }] }) // findOne inicial

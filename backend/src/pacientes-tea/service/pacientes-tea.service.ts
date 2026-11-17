@@ -35,6 +35,24 @@ type Campos = Record<string, any>;
 const apenasDigitos = (texto: string) => texto.replace(/\D/g, '');
 const paraSnake = (texto: string) => texto.replace(/[A-Z]/g, (letra) => `_${letra.toLowerCase()}`);
 
+const paraCamel = (texto: string) => texto.replace(/_([a-z])/g, (_, letra) => letra.toUpperCase());
+
+// snake_case (banco) -> camelCase (regras de negócio), só no primeiro nível
+function camelizar(origem?: Campos | null): Campos {
+  return Object.fromEntries(
+    Object.entries(origem ?? {}).map(([chave, valor]) => [paraCamel(chave), valor]),
+  );
+}
+
+// O pg devolve arrays de enum como texto ("{a,b}"): transforma em lista de verdade
+function paraLista(valor: unknown): string[] {
+  if (Array.isArray(valor)) return valor;
+  if (typeof valor === 'string' && valor.startsWith('{')) {
+    return valor.slice(1, -1).split(',').filter(Boolean);
+  }
+  return [];
+}
+
 // Copia só os campos permitidos que foram realmente enviados 
 function selecionar(origem: any, permitidos: readonly string[]): Campos {
   const resultado: Campos = {};
@@ -154,7 +172,6 @@ export class PacientesTeaService {
     const atual = await this.findOne(id);
 
     this.validarDatas(dto.dataNascimento, dto.responsavelLegal?.dataNascimento);
-    this.validarFilhos(dto.dadosFamiliares);
     if (dto.cpf) await this.garantirCpfDisponivel(apenasDigitos(dto.cpf), id);
     if (dto.responsavelTriagemId) await this.garantirTriagemValida(dto.responsavelTriagemId);
 
@@ -172,6 +189,10 @@ export class PacientesTeaService {
     if (Object.keys(campos).length === 0 && Object.keys(familiares).length === 0) {
       return atual; // nada para atualizar
     }
+        // Valida as regras "se X, então Y" no cadastro como ele ficará depois da atualização
+    // (dados atuais + mudanças), e não apenas no que veio na requisição
+    this.validarRegrasCondicionais({ ...camelizar(atual), ...campos });
+    this.validarFilhos({ ...camelizar(atual.dados_familiares), ...familiares })
 
     await this.executarEmTransacao(async (client) => {
       if (Object.keys(campos).length > 0) {
@@ -258,6 +279,23 @@ private async garantirCpfDisponivel(cpf: string, ignorarId?: string) {
       campos.qtdMeninos ??= 0;
     }
     return campos;
+  }
+
+    // Regras "se X, então Y" aplicadas ao cadastro inteiro (usadas na atualização)
+  private validarRegrasCondicionais(cadastro: Campos) {
+    if (cadastro.frequentaEscola === true && !cadastro.nomeInstituicao?.trim()) {
+      throw new BadRequestException('Informe o nome da instituição quando a pessoa frequenta escola');
+    }
+    if (cadastro.parecerEspecialista === true && !cadastro.parecerQuais?.trim()) {
+      throw new BadRequestException('Informe quais pareceres de especialista foram emitidos');
+    }
+    const terapias = paraLista(cadastro.terapias);
+    if (cadastro.realizaTerapias === true && terapias.length === 0) {
+      throw new BadRequestException('Informe ao menos uma terapia quando realiza terapias');
+    }
+    if (terapias.includes(Terapia.OUTROS) && !cadastro.terapiaOutros?.trim()) {
+      throw new BadRequestException('Descreva a terapia "outros"');
+    }
   }
 
   // Responsável legal só existe para criança/adolescente; para adulto/idoso os campos ficam nulos
