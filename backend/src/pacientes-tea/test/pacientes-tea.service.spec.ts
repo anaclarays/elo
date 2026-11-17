@@ -121,6 +121,20 @@ describe('PacientesTeaService', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
+    it('devolve as terapias do cadastro criado como lista', async () => {
+      mockClient.query.mockImplementation(async (sql: string) => {
+        if (sql.includes('INSERT INTO pacientes_tea'))
+          return { rows: [{ id: 'p1', terapias: '{fonoaudiologico}' }] };
+        if (sql.includes('INSERT INTO dados_familiares'))
+          return { rows: [{ id: 'f1', paciente_id: 'p1' }] };
+        return { rows: [] };
+      });
+
+      const resultado = await service.create(dtoCrianca as any);
+
+      expect(resultado.terapias).toEqual(['fonoaudiologico']);
+    });
+
     it('grava o CPF apenas com dígitos', async () => {
       await service.create(dtoCrianca as any);
 
@@ -339,6 +353,26 @@ describe('PacientesTeaService', () => {
 
       expect(resultado.id).toBe('1');
       expect(mockPool.query.mock.calls[0][0]).toContain('ativo = true');
+    });
+
+    it('devolve as terapias como lista, e não como texto do pg', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', terapias: '{fisioterapia,outros}' }],
+      });
+
+      const resultado = await service.findOne('1');
+
+      expect(resultado.terapias).toEqual(['fisioterapia', 'outros']);
+    });
+
+    it('mantém terapias nulo quando a pessoa não realiza terapias', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ id: '1', terapias: null }],
+      });
+
+      const resultado = await service.findOne('1');
+
+      expect(resultado.terapias).toBeNull();
     });
 
     it('lança NotFoundException se não existir (ou estiver removido)', async () => {

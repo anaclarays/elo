@@ -100,6 +100,12 @@ function paraLista(valor: unknown): string[] {
   return [];
 }
 
+// Devolve o cadastro com `terapias` como lista (o pg entrega arrays de enum como texto)
+function formatarPaciente<T extends Campos>(linha: T): T {
+  if (linha.terapias === null || linha.terapias === undefined) return linha;
+  return { ...linha, terapias: paraLista(linha.terapias) };
+}
+
 function calcularIdade(dataNascimento: string): number {
   const [ano, mes, dia] = dataNascimento.split('-').map(Number);
   const hoje = new Date();
@@ -192,7 +198,10 @@ export class PacientesTeaService {
         inserirFamiliares.valores,
       );
 
-      return { ...paciente.rows[0], dados_familiares: dadosFamiliares.rows[0] };
+      return formatarPaciente({
+        ...paciente.rows[0],
+        dados_familiares: dadosFamiliares.rows[0],
+      });
     });
   }
 
@@ -247,7 +256,7 @@ export class PacientesTeaService {
     if (resultado.rows.length === 0) {
       throw new NotFoundException('Cadastro não encontrado');
     }
-    return resultado.rows[0];
+    return formatarPaciente(resultado.rows[0]);
   }
 
   // ---------- ATUALIZAR ----------
