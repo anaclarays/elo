@@ -28,13 +28,13 @@ export class AtendimentosController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseIntPipe) id: string) {
     return this.atendimentosService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: string,
     @Body() updateAtendimentoDto: UpdateAtendimentoDto,
   ) {
     return this.atendimentosService.update(id, updateAtendimentoDto);
@@ -42,14 +42,14 @@ export class AtendimentosController {
 
   @Put(':id')
   replace(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: string,
     @Body() updateAtendimentoDto: UpdateAtendimentoDto,
   ) {
     return this.atendimentosService.update(id, updateAtendimentoDto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id', ParseIntPipe) id: string) {
     return this.atendimentosService.remove(id);
   }
 }

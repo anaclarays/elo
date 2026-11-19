@@ -25,7 +25,7 @@ export class AtendimentosService {
     return this.atendimentosRepository.findAll();
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const atendimento = await this.atendimentosRepository.findOne(id);
     if (!atendimento) {
       throw new NotFoundException(`Atendimento com id ${id} não encontrado.`);
@@ -33,7 +33,7 @@ export class AtendimentosService {
     return atendimento;
   }
 
-  async update(id: number, updateAtendimentoDto: UpdateAtendimentoDto) {
+  async update(id: string, updateAtendimentoDto: UpdateAtendimentoDto) {
     if (Object.keys(updateAtendimentoDto).length === 0) {
       throw new BadRequestException(
         'Informe ao menos um campo para atualizar.',
@@ -45,9 +45,23 @@ export class AtendimentosService {
       throw new NotFoundException(`Atendimento com id ${id} não encontrado.`);
     }
 
-    const atendimentoAtualizado = {
-      ...atendimentoAtual,
-      ...updateAtendimentoDto,
+    const mudouTipoPaciente =
+    updateAtendimentoDto.isTea !== undefined &&
+    updateAtendimentoDto.isTea !== atendimentoAtual.isTea;
+
+    if (mudouTipoPaciente && updateAtendimentoDto.pacienteId === undefined) {
+      throw new BadRequestException(
+        'Informe o novo paciente ao alterar o tipo de paciente.',
+      );
+    }
+
+    const atendimentoAtualizado: CreateAtendimentoDto = {
+      pacienteId: updateAtendimentoDto.pacienteId ?? atendimentoAtual.pacienteId,
+      isTea: updateAtendimentoDto.isTea ?? atendimentoAtual.isTea,
+      profissionalId:
+        updateAtendimentoDto.profissionalId ?? atendimentoAtual.profissionalId,
+      dataInicio: updateAtendimentoDto.dataInicio ?? atendimentoAtual.dataInicio,
+      tipo: updateAtendimentoDto.tipo ?? atendimentoAtual.tipo,
     };
     if (atendimentoAtual.dataInicio !== atendimentoAtualizado.dataInicio) {
       await this.validateTimes(atendimentoAtualizado);
@@ -60,7 +74,7 @@ export class AtendimentosService {
     return result;
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     const removed = await this.atendimentosRepository.remove(id);
 
     if (!removed) {
@@ -69,9 +83,9 @@ export class AtendimentosService {
   }
 
   private async validateTimes(dto: CreateAtendimentoDto): Promise<void> {
-    if (!(await this.verifyAvailability(dto.profissionalId, dto.dataInicio))) {
-      throw new ConflictException(
-        'O horário solicitado está fora da disponibilidade do profissional.',
+    if (dto.dataInicio.getTime() < Date.now()) {
+      throw new BadRequestException(
+        'O horário solicitado corresponde a uma data passada.',
       );
     }
 
@@ -91,11 +105,17 @@ export class AtendimentosService {
       await this.atendimentosRepository.hasTimeConflict(
         dto.pacienteId,
         dto.dataInicio,
-        'paciente',
+        dto.isTea ? 'paciente_tea' : 'paciente',
       )
     ) {
       throw new ConflictException(
         'O horário solicitado conflita com o de um atendimento já marcado para este paciente.',
+      );
+    }
+
+    if (!(await this.verifyAvailability(dto.profissionalId, dto.dataInicio))) {
+      throw new ConflictException(
+        'O horário solicitado está fora da disponibilidade do profissional.',
       );
     }
   }
@@ -138,6 +158,8 @@ export class AtendimentosService {
     const horarioProfInicio = horarioEmMinutos(horario_inicio);
     const horarioProfFim = horarioEmMinutos(horario_fim);
 
-    return (inicioAtendimento >= horarioProfInicio && fimAtendimento <= horarioProfFim);
+    return (
+      inicioAtendimento >= horarioProfInicio && fimAtendimento <= horarioProfFim
+    );
   }
 }

@@ -2,29 +2,36 @@ import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.constants';
 import { CreateAtendimentoDto } from './dto/create-atendimento.dto';
-import { UpdateAtendimentoDto } from './dto/update-atendimento.dto';
 
-export interface AtendimentoRecord extends CreateAtendimentoDto {
-  id: number;
+type AtendimentoPersistido = Omit<CreateAtendimentoDto, 'isTea'>;
+type AtendimentoCamposComuns = Omit<AtendimentoPersistido, 'pacienteId'>;
+
+type AtendimentoParaGravar = Pick<
+  CreateAtendimentoDto,
+  'pacienteId' | 'profissionalId' | 'dataInicio' | 'tipo' | 'isTea'
+>;
+
+export interface AtendimentoRecord extends AtendimentoPersistido {
+  id: string;
   dataFim: Date;
+  isTea: boolean;
 }
 
-type CreateAtendimentoRecord = CreateAtendimentoDto;
-
 const ATENDIMENTO_COLUMNS = {
-  pacienteId: 'paciente_id',
   profissionalId: 'profissional_id',
   dataInicio: 'data_inicio',
   tipo: 'tipo',
-} as const satisfies Record<keyof CreateAtendimentoDto, string>;
+} as const satisfies Record<keyof AtendimentoCamposComuns, string>;
 
 const ATENDIMENTO_FIELDS = Object.keys(
   ATENDIMENTO_COLUMNS,
-) as (keyof CreateAtendimentoDto)[];
+) as (keyof AtendimentoCamposComuns)[];
 
 const ATENDIMENTO_PROJECTION = [
   'id',
   `data_inicio + INTERVAL '20 minutes' AS "dataFim"`,
+  `COALESCE(paciente_id::text, paciente_tea_id::text) AS "pacienteId"`,
+  `paciente_tea_id IS NOT NULL AS "isTea"`,
   ...ATENDIMENTO_FIELDS.map(
     (field) => `${ATENDIMENTO_COLUMNS[field]} AS "${field}"`,
   ),
@@ -35,18 +42,28 @@ export class AtendimentosRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async create(
-    atendimento: CreateAtendimentoRecord,
+    atendimento: AtendimentoParaGravar,
   ): Promise<AtendimentoRecord> {
+    const pacienteColumn = atendimento.isTea
+      ? 'paciente_tea_id'
+      : 'paciente_id';
+
     const columns = [
+      pacienteColumn,
       ...ATENDIMENTO_FIELDS.map((field) => ATENDIMENTO_COLUMNS[field]),
     ];
+
     const values = [
-      ...ATENDIMENTO_FIELDS.map((field) => atendimento[field] ?? null),
+      atendimento.pacienteId,
+      ...ATENDIMENTO_FIELDS.map((field) => atendimento[field]),
     ];
+
     const placeholders = values.map((_, index) => `$${index + 1}`);
 
     const result = await this.pool.query(
-      `INSERT INTO atendimentos (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING ${ATENDIMENTO_PROJECTION}`,
+      `INSERT INTO atendimentos (${columns.join(', ')})
+      VALUES (${placeholders.join(', ')})
+      RETURNING ${ATENDIMENTO_PROJECTION}`,
       values,
     );
 
@@ -66,7 +83,7 @@ export class AtendimentosRepository {
     return result.rows as AtendimentoRecord[];
   }
 
-  async findOne(id: number): Promise<AtendimentoRecord | null> {
+  async findOne(id: string): Promise<AtendimentoRecord | null> {
     const result = await this.pool.query(
       `SELECT ${ATENDIMENTO_PROJECTION} FROM atendimentos WHERE id = $1`,
       [id],
@@ -75,33 +92,39 @@ export class AtendimentosRepository {
   }
 
   async update(
-    id: number,
-    atendimento: UpdateAtendimentoDto,
+    id: string,
+    atendimento: AtendimentoParaGravar,
   ): Promise<AtendimentoRecord | null> {
-    const fields = ATENDIMENTO_FIELDS.filter(
-      (field) => atendimento[field] !== undefined,
-    );
+    const pacienteColumn = atendimento.isTea
+      ? 'paciente_tea_id'
+      : 'paciente_id';
 
-    const values: (string | number | Date | null)[] = [];
+    const outraPacienteColumn = atendimento.isTea
+      ? 'paciente_id'
+      : 'paciente_tea_id';
 
-    const assignments = fields.map((field, index) => {
-      const value = atendimento[field];
-      if (value === undefined) {
-        throw new Error(`O campo ${field} não possui valor para atualização.`);
-      }
-      values.push(value);
-      return `${ATENDIMENTO_COLUMNS[field]} = $${index + 1}`;
-    });
-    
-    values.push(id);
     const result = await this.pool.query(
-      `UPDATE atendimentos SET ${assignments.join(', ')} WHERE id = $${values.length} RETURNING ${ATENDIMENTO_PROJECTION}`,
-      values,
+      `UPDATE atendimentos
+      SET ${pacienteColumn} = $1,
+          ${outraPacienteColumn} = NULL,
+          profissional_id = $2,
+          data_inicio = $3,
+          tipo = $4
+      WHERE id = $5
+      RETURNING ${ATENDIMENTO_PROJECTION}`,
+      [
+        atendimento.pacienteId,
+        atendimento.profissionalId,
+        atendimento.dataInicio,
+        atendimento.tipo,
+        id,
+      ],
     );
+
     return (result.rows[0] as AtendimentoRecord | undefined) ?? null;
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     const result = await this.pool.query(
       'DELETE FROM atendimentos WHERE id = $1 RETURNING id',
       [id],
