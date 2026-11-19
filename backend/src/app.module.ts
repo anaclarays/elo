@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
 import { PacientesModule } from './pacientes/pacientes.module';
 import { ProfissionaisModule } from './profissionais/profissionais.module';
+import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
 import { AtendimentosModule } from './atendimentos/atendimentos.module';
 
@@ -14,6 +15,7 @@ import { AtendimentosModule } from './atendimentos/atendimentos.module';
     DatabaseModule,
     PacientesModule,
     ProfissionaisModule,
+    PacientesTeaModule,
     AuthModule,
     AtendimentosModule,
   ],
