@@ -7,7 +7,7 @@ import {
   TipoPaciente,
 } from './enum/lista-espera.enum';
 
-// Pool ou client de uma transação já aberta (ex.: o cadastro de paciente TEA)
+// Pool ou client de uma transação já aberta
 export interface ExecutorSql {
   query: (sql: string, valores?: unknown[]) => Promise<{ rows: any[] }>;
 }
@@ -92,9 +92,7 @@ export class ListaEsperaRepository {
     return resultado.rows.length > 0;
   }
 
-  // RN30 + RN34 + RN32: a posição é calculada na hora da consulta, pela ordem de
-  // chegada, sobre a fila inteira (antes dos filtros). Assim ela nunca fica
-  // desatualizada quando alguém entra ou sai da lista.
+  // A posição é calculada sobre a fila inteira, antes dos filtros
   async listarFila(filtros: FiltrosFila = {}): Promise<ItemFila[]> {
     const condicoes: string[] = [];
     const valores: unknown[] = [];
@@ -134,7 +132,6 @@ export class ListaEsperaRepository {
     return resultado.rows as ItemFila[];
   }
 
-  // Encerra um registro ativo pelo id do registro (retirada manual, RN33)
   async encerrar(
     id: string,
     motivo: MotivoSaida,
@@ -156,7 +153,6 @@ export class ListaEsperaRepository {
     return (resultado.rows[0] as RegistroListaEspera | undefined) ?? null;
   }
 
-  // Encerra o registro ativo de um paciente, se houver (saída por agendamento, RN29)
   async encerrarPorPaciente(
     paciente: PacienteRef,
     motivo: MotivoSaida,

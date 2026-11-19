@@ -9,7 +9,6 @@ import {
 } from 'class-validator';
 import { TipoPaciente } from '../enum/lista-espera.enum';
 
-// Paciente comum tem id inteiro; paciente TEA tem id UUID
 @ValidatorConstraint({ name: 'pacienteIdPorTipo', async: false })
 class PacienteIdPorTipoConstraint implements ValidatorConstraintInterface {
   validate(valor: unknown, args: ValidationArguments): boolean {
@@ -29,7 +28,6 @@ class PacienteIdPorTipoConstraint implements ValidatorConstraintInterface {
   }
 }
 
-// RN29: depois de sair da lista, o paciente só volta se for incluído manualmente
 export class AdicionarListaEsperaDto {
   @IsEnum(TipoPaciente)
   tipoPaciente: TipoPaciente;

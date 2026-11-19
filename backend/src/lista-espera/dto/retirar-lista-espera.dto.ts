@@ -1,7 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
-// RN33: a retirada manual exige uma justificativa
 export class RetirarListaEsperaDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()

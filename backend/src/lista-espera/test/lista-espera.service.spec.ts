@@ -34,7 +34,6 @@ describe('ListaEsperaService', () => {
     );
   });
 
-  // ---------- RN28: registro automático no cadastro ----------
   describe('registrarNoCadastro', () => {
     it('registra o paciente usando o client da transação recebida', async () => {
       const client = { query: jest.fn() };
@@ -65,7 +64,6 @@ describe('ListaEsperaService', () => {
     });
   });
 
-  // ---------- RN30 / RN34: consulta ----------
   describe('consultar', () => {
     it('devolve a fila do repositório, na ordem recebida', async () => {
       const fila = [
@@ -97,7 +95,6 @@ describe('ListaEsperaService', () => {
     });
   });
 
-  // ---------- RN29 + RN31: inclusão manual ----------
   describe('adicionarManualmente', () => {
     const dto = {
       tipoPaciente: TipoPaciente.TEA,
@@ -154,7 +151,6 @@ describe('ListaEsperaService', () => {
     });
   });
 
-  // ---------- RN33: retirada manual ----------
   describe('retirarManualmente', () => {
     it('encerra o registro guardando a justificativa e quem retirou', async () => {
       repository.encerrar.mockResolvedValueOnce({
@@ -208,7 +204,6 @@ describe('ListaEsperaService', () => {
     });
   });
 
-  // ---------- RN29: saída por agendamento ----------
   describe('retirarPorAgendamento', () => {
     it('encerra o registro ativo do paciente com o motivo "agendamento"', async () => {
       const client = { query: jest.fn() };

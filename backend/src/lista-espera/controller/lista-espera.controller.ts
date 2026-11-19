@@ -18,7 +18,6 @@ import { RetirarListaEsperaDto } from '../dto/retirar-lista-espera.dto';
 import { TipoPaciente } from '../enum/lista-espera.enum';
 import { ListaEsperaService } from '../service/lista-espera.service';
 
-// O JwtAuthGuard coloca o payload do token em request.user (sub = id do profissional)
 type RequestAutenticado = Request & { user: { sub: string } };
 
 @Controller('lista-espera')

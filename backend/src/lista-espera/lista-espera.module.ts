@@ -8,7 +8,6 @@ import { ListaEsperaService } from './service/lista-espera.service';
   imports: [AuthModule],
   controllers: [ListaEsperaController],
   providers: [ListaEsperaService, ListaEsperaRepository],
-  // Os cadastros de paciente (e, depois, a agenda) usam o service
   exports: [ListaEsperaService],
 })
 export class ListaEsperaModule {}

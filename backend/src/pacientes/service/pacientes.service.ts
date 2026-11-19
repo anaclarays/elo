@@ -24,7 +24,6 @@ export class PacientesService {
       dataCadastro: new Date().toISOString(),
     });
 
-    // RN28: todo paciente cadastrado entra automaticamente na lista de espera
     await this.listaEsperaService.registrarNoCadastro({
       tipo: TipoPaciente.BENEFICIARIO,
       id: paciente.id,

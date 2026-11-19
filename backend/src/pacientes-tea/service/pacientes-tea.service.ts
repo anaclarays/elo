@@ -203,7 +203,6 @@ export class PacientesTeaService {
         inserirFamiliares.valores,
       );
 
-      // RN28: entra na lista de espera na mesma transação do cadastro
       await this.listaEsperaService.registrarNoCadastro(
         { tipo: TipoPaciente.TEA, id: paciente.rows[0].id },
         client,
