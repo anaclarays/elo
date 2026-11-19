@@ -6,18 +6,31 @@ import {
 } from '@nestjs/common';
 import { CreateBeneficiarioDto } from '../dto/create-paciente.dto';
 import { PacientesRepository } from '../pacientes.repository';
+import { TipoPaciente } from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 @Injectable()
 export class PacientesService {
-  constructor(private readonly pacientesRepository: PacientesRepository) {}
+  constructor(
+    private readonly pacientesRepository: PacientesRepository,
+    private readonly listaEsperaService: ListaEsperaService,
+  ) {}
 
   async create(createPacienteDto: CreateBeneficiarioDto) {
     this.validateConditionalFields(createPacienteDto);
     await this.ensureCpfIsAvailable(createPacienteDto.cpf);
-    return this.pacientesRepository.create({
+    const paciente = await this.pacientesRepository.create({
       ...createPacienteDto,
       dataCadastro: new Date().toISOString(),
     });
+
+    // RN28: todo paciente cadastrado entra automaticamente na lista de espera
+    await this.listaEsperaService.registrarNoCadastro({
+      tipo: TipoPaciente.BENEFICIARIO,
+      id: paciente.id,
+    });
+
+    return paciente;
   }
 
   async findAll() {

@@ -7,6 +7,8 @@ import {
 import { CreateBeneficiarioDto } from '../dto/create-paciente.dto';
 import { PacienteRecord, PacientesRepository } from '../pacientes.repository';
 import { PacientesService } from '../service/pacientes.service';
+import { TipoPaciente } from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 describe('PacientesService', () => {
   let service: PacientesService;
@@ -30,6 +32,10 @@ describe('PacientesService', () => {
     remove: jest.fn<(id: number) => Promise<boolean>>(),
     existsByCpf:
       jest.fn<(cpf: string, ignoreId?: number) => Promise<boolean>>(),
+  };
+
+  const listaEspera = {
+    registrarNoCadastro: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
   };
 
   const createDto: CreateBeneficiarioDto = {
@@ -58,6 +64,7 @@ describe('PacientesService', () => {
   beforeEach(() => {
     service = new PacientesService(
       repository as unknown as PacientesRepository,
+      listaEspera as unknown as ListaEsperaService,
     );
     jest.clearAllMocks();
     repository.existsByCpf.mockResolvedValue(false);
@@ -97,6 +104,32 @@ describe('PacientesService', () => {
       repository.create.mockRejectedValue(error);
 
       await expect(service.create(createDto)).rejects.toBe(error);
+      expect(listaEspera.registrarNoCadastro).not.toHaveBeenCalled();
+    });
+
+    it('registra o paciente recém-cadastrado na lista de espera (RN28)', async () => {
+      repository.create.mockResolvedValue({
+        id: 7,
+        ...createDto,
+        dataCadastro: '2026-10-18T12:00:00.000Z',
+        ativo: true,
+      });
+
+      await service.create(createDto);
+
+      expect(listaEspera.registrarNoCadastro).toHaveBeenCalledWith({
+        tipo: TipoPaciente.BENEFICIARIO,
+        id: 7,
+      });
+    });
+
+    it('não registra na lista de espera quando o cadastro é recusado', async () => {
+      repository.existsByCpf.mockResolvedValue(true);
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(listaEspera.registrarNoCadastro).not.toHaveBeenCalled();
     });
 
     it('rejects missing answers for enabled conditional questions', async () => {

@@ -7,6 +7,7 @@ import { PacientesModule } from './pacientes/pacientes.module';
 import { ProfissionaisModule } from './profissionais/profissionais.module';
 import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
+import { ListaEsperaModule } from './lista-espera/lista-espera.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuthModule } from './auth/auth.module';
     ProfissionaisModule,
     PacientesTeaModule,
     AuthModule,
+    ListaEsperaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
