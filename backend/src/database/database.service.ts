@@ -55,6 +55,17 @@ export class DatabaseService implements OnModuleInit {
       )
     `);
 
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS atendimentos (
+        id SERIAL PRIMARY KEY,
+        paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+        profissional_id UUID NOT NULL REFERENCES profissionais(id),
+        data_inicio TIMESTAMPTZ NOT NULL,
+        tipo VARCHAR(255) NOT NULL,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE
+      )
+    `);
+
     const result = await this.pool.query('SELECT NOW()');
     console.log('Conexão com o PostgreSQL (Neon) estabelecida:', result.rows[0]);
   }
