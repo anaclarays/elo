@@ -14,9 +14,14 @@ describe('AtendimentosRepository', () => {
 
   const dataInicio = new Date('2026-10-29T13:00:00.000Z');
 
+  const atendimentoId = 'e695038b-6355-4db4-b833-48f5062a3aab';
+  const pacienteId = 'paciente-23';
+  const pacienteTeaId = '7a63fc53-ea95-4cd7-8a59-dd45d807d696';
+
   const atendimento = {
-    id: 1,
-    pacienteId: 23,
+    id: atendimentoId,
+    pacienteId,
+    isTea: false,
     profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
     dataInicio,
     dataFim: new Date(dataInicio.getTime() + 20 * 60 * 1000),
@@ -32,7 +37,8 @@ describe('AtendimentosRepository', () => {
     pool.query.mockResolvedValue({ rows: [atendimento] });
 
     const result = await repository.create({
-      pacienteId: 23,
+      pacienteId,
+      isTea: false,
       profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
       dataInicio,
       tipo: TipoAtendimento.PSICOLOGIA,
@@ -44,15 +50,76 @@ describe('AtendimentosRepository', () => {
         'INSERT INTO atendimentos (paciente_id, profissional_id, data_inicio, tipo)',
       ),
       [
-        23,
+        pacienteId,
         '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
         dataInicio,
         TipoAtendimento.PSICOLOGIA,
       ],
     );
-    expect(pool.query.mock.calls[0][0]).not.toContain(
-      '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
+    expect(pool.query.mock.calls[0][0]).not.toContain(pacienteId);
+  });
+
+  it('insere um atendimento de paciente TEA usando a referência UUID', async () => {
+    const atendimentoTea = {
+      ...atendimento,
+      pacienteId: pacienteTeaId,
+      isTea: true,
+    };
+    pool.query.mockResolvedValue({ rows: [atendimentoTea] });
+
+    await expect(
+      repository.create({
+        pacienteId: pacienteTeaId,
+        isTea: true,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      }),
+    ).resolves.toEqual(atendimentoTea);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'INSERT INTO atendimentos (paciente_tea_id, profissional_id, data_inicio, tipo)',
+      ),
+      [
+        pacienteTeaId,
+        atendimento.profissionalId,
+        dataInicio,
+        TipoAtendimento.PSICOLOGIA,
+      ],
     );
+  });
+
+  it('propaga erro ao gravar uma referência de paciente inválida', async () => {
+    const error = new Error('violação da referência de paciente');
+    pool.query.mockRejectedValue(error);
+
+    await expect(
+      repository.create({
+        pacienteId,
+        isTea: false,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      }),
+    ).rejects.toBe(error);
+    expect(pool.query.mock.calls[0][0]).toContain('(paciente_id,');
+  });
+
+  it('propaga erro ao gravar uma referência UUID de paciente TEA inválida', async () => {
+    const error = new Error('violação da referência de paciente TEA');
+    pool.query.mockRejectedValue(error);
+
+    await expect(
+      repository.create({
+        pacienteId: 'uuid-invalido',
+        isTea: true,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      }),
+    ).rejects.toBe(error);
+    expect(pool.query.mock.calls[0][0]).toContain('(paciente_tea_id,');
   });
 
   it('lança erro quando a criação não retorna o registro inserido', async () => {
@@ -60,7 +127,8 @@ describe('AtendimentosRepository', () => {
 
     await expect(
       repository.create({
-        pacienteId: 23,
+        pacienteId,
+        isTea: false,
         profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
         dataInicio,
         tipo: TipoAtendimento.PSICOLOGIA,
@@ -82,35 +150,81 @@ describe('AtendimentosRepository', () => {
   it('retorna o atendimento correspondente ao id', async () => {
     pool.query.mockResolvedValue({ rows: [atendimento] });
 
-    await expect(repository.findOne(1)).resolves.toEqual(atendimento);
+    await expect(repository.findOne(atendimentoId)).resolves.toEqual(
+      atendimento,
+    );
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('FROM atendimentos WHERE id = $1'),
-      [1],
+      [atendimentoId],
     );
   });
 
   it('retorna null quando não encontra um atendimento pelo id', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
-    await expect(repository.findOne(23)).resolves.toBeNull();
+    await expect(repository.findOne(atendimentoId)).resolves.toBeNull();
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('FROM atendimentos WHERE id = $1'),
-      [23],
+      [atendimentoId],
     );
   });
 
-  it('atualiza somente os campos informados e parametriza o id', async () => {
+  it('atualiza o paciente e limpa a referência TEA', async () => {
     pool.query.mockResolvedValue({ rows: [atendimento] });
 
     await expect(
-      repository.update(1, { tipo: TipoAtendimento.PEDAGOGIA }),
+      repository.update(atendimentoId, {
+        pacienteId,
+        isTea: false,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PEDAGOGIA,
+      }),
     ).resolves.toEqual(atendimento);
 
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining(
-        'UPDATE atendimentos SET tipo = $1 WHERE id = $2',
+        'SET paciente_id = $1,\n          paciente_tea_id = NULL',
       ),
-      [TipoAtendimento.PEDAGOGIA, 1],
+      [
+        pacienteId,
+        atendimento.profissionalId,
+        dataInicio,
+        TipoAtendimento.PEDAGOGIA,
+        atendimentoId,
+      ],
+    );
+  });
+
+  it('atualiza o paciente TEA e limpa a referência de paciente', async () => {
+    const atendimentoTea = {
+      ...atendimento,
+      pacienteId: pacienteTeaId,
+      isTea: true,
+    };
+    pool.query.mockResolvedValue({ rows: [atendimentoTea] });
+
+    await expect(
+      repository.update(atendimentoId, {
+        pacienteId: pacienteTeaId,
+        isTea: true,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      }),
+    ).resolves.toEqual(atendimentoTea);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'SET paciente_tea_id = $1,\n          paciente_id = NULL',
+      ),
+      [
+        pacienteTeaId,
+        atendimento.profissionalId,
+        dataInicio,
+        TipoAtendimento.PSICOLOGIA,
+        atendimentoId,
+      ],
     );
   });
 
@@ -118,36 +232,42 @@ describe('AtendimentosRepository', () => {
     pool.query.mockResolvedValue({ rows: [] });
 
     await expect(
-      repository.update(23, { tipo: TipoAtendimento.PEDAGOGIA }),
+      repository.update(atendimentoId, {
+        pacienteId,
+        isTea: false,
+        profissionalId: atendimento.profissionalId,
+        dataInicio,
+        tipo: TipoAtendimento.PEDAGOGIA,
+      }),
     ).resolves.toBeNull();
   });
 
   it('retorna true quando remove um atendimento', async () => {
-    pool.query.mockResolvedValue({ rows: [{ id: 1 }] });
+    pool.query.mockResolvedValue({ rows: [{ id: atendimentoId }] });
 
-    await expect(repository.remove(1)).resolves.toBe(true);
+    await expect(repository.remove(atendimentoId)).resolves.toBe(true);
     expect(pool.query).toHaveBeenCalledWith(
       'DELETE FROM atendimentos WHERE id = $1 RETURNING id',
-      [1],
+      [atendimentoId],
     );
   });
 
   it('retorna false quando não encontra um atendimento para remover', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
-    await expect(repository.remove(23)).resolves.toBe(false);
+    await expect(repository.remove(atendimentoId)).resolves.toBe(false);
   });
 
   it('identifica conflito de horário para o mesmo paciente', async () => {
     pool.query.mockResolvedValue({ rows: [{ conflito_horario: true }] });
 
     await expect(
-      repository.hasTimeConflict(23, dataInicio, 'paciente'),
+      repository.hasTimeConflict(pacienteId, dataInicio, 'paciente'),
     ).resolves.toBe(true);
 
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('WHERE paciente_id = $1'),
-      [23, dataInicio],
+      [pacienteId, dataInicio],
     );
     expect(pool.query.mock.calls[0][0]).toContain(
       "data_inicio < $2::timestamptz + INTERVAL '20 minutes'",
@@ -157,11 +277,28 @@ describe('AtendimentosRepository', () => {
     );
   });
 
+  it('identifica conflito de horário para um paciente TEA', async () => {
+    pool.query.mockResolvedValue({ rows: [{ conflito_horario: true }] });
+
+    await expect(
+      repository.hasTimeConflict(pacienteTeaId, dataInicio, 'paciente_tea'),
+    ).resolves.toBe(true);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE paciente_tea_id = $1'),
+      [pacienteTeaId, dataInicio],
+    );
+  });
+
   it('retorna false quando não há conflito de horário para o profissional', async () => {
     pool.query.mockResolvedValue({ rows: [{ conflito_horario: false }] });
 
     await expect(
-      repository.hasTimeConflict('7a63fc53-ea95-4cd7-8a59-dd45d807d696', dataInicio, 'profissional'),
+      repository.hasTimeConflict(
+        '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
+        dataInicio,
+        'profissional',
+      ),
     ).resolves.toBe(false);
 
     expect(pool.query).toHaveBeenCalledWith(

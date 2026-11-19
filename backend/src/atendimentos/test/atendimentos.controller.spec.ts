@@ -15,34 +15,53 @@ describe('AtendimentosController', () => {
     create:
       jest.fn<(dto: CreateAtendimentoDto) => Promise<AtendimentoRecord>>(),
     findAll: jest.fn<() => Promise<AtendimentoRecord[]>>(),
-    findOne: jest.fn<(id: number) => Promise<AtendimentoRecord>>(),
+    findOne: jest.fn<(id: string) => Promise<AtendimentoRecord>>(),
     update:
       jest.fn<
         (
-          id: number,
+          id: string,
           dto: UpdateAtendimentoDto,
         ) => Promise<AtendimentoRecord | null>
       >(),
-    remove: jest.fn<(id: number) => Promise<void>>(),
+    remove: jest.fn<(id: string) => Promise<void>>(),
   };
 
-  const dataInicio = new Date('2026-10-29T13:00:00.000Z');
+  const atendimentoId = 'e695038b-6355-4db4-b833-48f5062a3aab';
+  const pacienteTeaId = '7a63fc53-ea95-4cd7-8a59-dd45d807d696';
+  const dataInicio = new Date('2030-10-29T13:00:00.000Z');
 
   const createDto: CreateAtendimentoDto = {
-    pacienteId: 23,
-    profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
+    pacienteId: '23',
+    isTea: false,
+    profissionalId: pacienteTeaId,
     dataInicio,
     tipo: TipoAtendimento.PSICOLOGIA,
+  };
+
+  const createTeaDto: CreateAtendimentoDto = {
+    ...createDto,
+    pacienteId: pacienteTeaId,
+    isTea: true,
   };
 
   const updateDto: UpdateAtendimentoDto = {
     tipo: TipoAtendimento.TERAPIA_OCUPACIONAL,
   };
 
+  const updateTeaDto: UpdateAtendimentoDto = {
+    pacienteId: pacienteTeaId,
+    isTea: true,
+  };
+
   const atendimento: AtendimentoRecord = {
-    id: 1,
+    id: atendimentoId,
     ...createDto,
     dataFim: new Date(dataInicio.getTime() + 20 * 60000),
+  };
+
+  const atendimentoTea: AtendimentoRecord = {
+    ...atendimento,
+    ...createTeaDto,
   };
 
   beforeEach(async () => {
@@ -66,6 +85,23 @@ describe('AtendimentosController', () => {
 
       await expect(controller.create(createDto)).rejects.toBe(error);
       expect(atendimentosService.create).toHaveBeenCalledWith(createDto);
+    });
+
+    it('cria e retorna um atendimento de paciente TEA', async () => {
+      atendimentosService.create.mockResolvedValue(atendimentoTea);
+
+      await expect(controller.create(createTeaDto)).resolves.toBe(
+        atendimentoTea,
+      );
+      expect(atendimentosService.create).toHaveBeenCalledWith(createTeaDto);
+    });
+
+    it('propaga falhas ao criar um atendimento de paciente TEA', async () => {
+      const error = new Error('falha ao criar atendimento de paciente TEA');
+      atendimentosService.create.mockRejectedValue(error);
+
+      await expect(controller.create(createTeaDto)).rejects.toBe(error);
+      expect(atendimentosService.create).toHaveBeenCalledWith(createTeaDto);
     });
   });
 
@@ -91,16 +127,18 @@ describe('AtendimentosController', () => {
     it('retorna o atendimento correspondente ao id', async () => {
       atendimentosService.findOne.mockResolvedValue(atendimento);
 
-      await expect(controller.findOne(1)).resolves.toBe(atendimento);
-      expect(atendimentosService.findOne).toHaveBeenCalledWith(1);
+      await expect(controller.findOne(atendimentoId)).resolves.toBe(
+        atendimento,
+      );
+      expect(atendimentosService.findOne).toHaveBeenCalledWith(atendimentoId);
     });
 
     it('propaga falhas ao buscar o atendimento', async () => {
       const error = new Error('atendimento não encontrado');
       atendimentosService.findOne.mockRejectedValue(error);
 
-      await expect(controller.findOne(1)).rejects.toBe(error);
-      expect(atendimentosService.findOne).toHaveBeenCalledWith(1);
+      await expect(controller.findOne(atendimentoId)).rejects.toBe(error);
+      expect(atendimentosService.findOne).toHaveBeenCalledWith(atendimentoId);
     });
   });
 
@@ -109,18 +147,51 @@ describe('AtendimentosController', () => {
       const atendimentoAtualizado = { ...atendimento, ...updateDto };
       atendimentosService.update.mockResolvedValue(atendimentoAtualizado);
 
-      await expect(controller.update(1, updateDto)).resolves.toBe(
+      await expect(controller.update(atendimentoId, updateDto)).resolves.toBe(
         atendimentoAtualizado,
       );
-      expect(atendimentosService.update).toHaveBeenCalledWith(1, updateDto);
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateDto,
+      );
     });
 
     it('propaga falhas ao atualizar o atendimento', async () => {
       const error = new Error('falha ao atualizar atendimento');
       atendimentosService.update.mockRejectedValue(error);
 
-      await expect(controller.update(1, updateDto)).rejects.toBe(error);
-      expect(atendimentosService.update).toHaveBeenCalledWith(1, updateDto);
+      await expect(controller.update(atendimentoId, updateDto)).rejects.toBe(
+        error,
+      );
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateDto,
+      );
+    });
+
+    it('encaminha a atualização de paciente TEA ao service', async () => {
+      atendimentosService.update.mockResolvedValue(atendimentoTea);
+
+      await expect(
+        controller.update(atendimentoId, updateTeaDto),
+      ).resolves.toBe(atendimentoTea);
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateTeaDto,
+      );
+    });
+
+    it('propaga falhas ao atualizar um atendimento de paciente TEA', async () => {
+      const error = new Error('falha ao atualizar paciente TEA');
+      atendimentosService.update.mockRejectedValue(error);
+
+      await expect(controller.update(atendimentoId, updateTeaDto)).rejects.toBe(
+        error,
+      );
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateTeaDto,
+      );
     });
   });
 
@@ -129,18 +200,51 @@ describe('AtendimentosController', () => {
       const atendimentoSubstituido = { ...atendimento, ...updateDto };
       atendimentosService.update.mockResolvedValue(atendimentoSubstituido);
 
-      await expect(controller.replace(1, updateDto)).resolves.toBe(
+      await expect(controller.replace(atendimentoId, updateDto)).resolves.toBe(
         atendimentoSubstituido,
       );
-      expect(atendimentosService.update).toHaveBeenCalledWith(1, updateDto);
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateDto,
+      );
     });
 
     it('propaga falhas ao substituir o atendimento', async () => {
       const error = new Error('falha ao substituir atendimento');
       atendimentosService.update.mockRejectedValue(error);
 
-      await expect(controller.replace(1, updateDto)).rejects.toBe(error);
-      expect(atendimentosService.update).toHaveBeenCalledWith(1, updateDto);
+      await expect(controller.replace(atendimentoId, updateDto)).rejects.toBe(
+        error,
+      );
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateDto,
+      );
+    });
+
+    it('substitui um atendimento de paciente TEA', async () => {
+      atendimentosService.update.mockResolvedValue(atendimentoTea);
+
+      await expect(
+        controller.replace(atendimentoId, updateTeaDto),
+      ).resolves.toBe(atendimentoTea);
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateTeaDto,
+      );
+    });
+
+    it('propaga falhas ao substituir um atendimento de paciente TEA', async () => {
+      const error = new Error('falha ao substituir paciente TEA');
+      atendimentosService.update.mockRejectedValue(error);
+
+      await expect(
+        controller.replace(atendimentoId, updateTeaDto),
+      ).rejects.toBe(error);
+      expect(atendimentosService.update).toHaveBeenCalledWith(
+        atendimentoId,
+        updateTeaDto,
+      );
     });
   });
 
@@ -148,16 +252,16 @@ describe('AtendimentosController', () => {
     it('remove o atendimento', async () => {
       atendimentosService.remove.mockResolvedValue(undefined);
 
-      await expect(controller.remove(1)).resolves.toBeUndefined();
-      expect(atendimentosService.remove).toHaveBeenCalledWith(1);
+      await expect(controller.remove(atendimentoId)).resolves.toBeUndefined();
+      expect(atendimentosService.remove).toHaveBeenCalledWith(atendimentoId);
     });
 
     it('propaga falhas ao remover o atendimento', async () => {
       const error = new Error('falha ao remover atendimento');
       atendimentosService.remove.mockRejectedValue(error);
 
-      await expect(controller.remove(1)).rejects.toBe(error);
-      expect(atendimentosService.remove).toHaveBeenCalledWith(1);
+      await expect(controller.remove(atendimentoId)).rejects.toBe(error);
+      expect(atendimentosService.remove).toHaveBeenCalledWith(atendimentoId);
     });
   });
 });
