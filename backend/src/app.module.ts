@@ -7,6 +7,7 @@ import { PacientesModule } from './pacientes/pacientes.module';
 import { ProfissionaisModule } from './profissionais/profissionais.module';
 import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
+import { HistoricoClinicoModule } from './historico-clinico/historico-clinico.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from './auth/auth.module';
     PacientesModule,
     ProfissionaisModule,
     PacientesTeaModule,
+    HistoricoClinicoModule,
     AuthModule,
   ],
   controllers: [AppController],
