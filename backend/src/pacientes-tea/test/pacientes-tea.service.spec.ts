@@ -11,11 +11,14 @@ import {
   EstadoCivil,
   Genero,
 } from '../enum/pacientes-tea.enum';
+import { TipoPaciente } from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 describe('PacientesTeaService', () => {
   let service: PacientesTeaService;
   const mockClient = { query: jest.fn(), release: jest.fn() };
   const mockPool = { query: jest.fn(), connect: jest.fn() };
+  const mockListaEspera = { registrarNoCadastro: jest.fn() };
 
   const dadosFamiliares = {
     estadoCivil: EstadoCivil.CASADO,
@@ -89,6 +92,7 @@ describe('PacientesTeaService', () => {
       providers: [
         PacientesTeaService,
         { provide: PG_POOL, useValue: mockPool },
+        { provide: ListaEsperaService, useValue: mockListaEspera },
       ],
     }).compile();
 
@@ -119,6 +123,28 @@ describe('PacientesTeaService', () => {
       expect(comandos[0]).toBe('BEGIN');
       expect(comandos[comandos.length - 1]).toBe('COMMIT');
       expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it('registra o paciente na lista de espera dentro da mesma transação (RN28)', async () => {
+      await service.create(dtoCrianca as any);
+
+      expect(mockListaEspera.registrarNoCadastro).toHaveBeenCalledWith(
+        { tipo: TipoPaciente.TEA, id: 'p1' },
+        mockClient,
+      );
+    });
+
+    it('desfaz o cadastro se não for possível registrar na lista de espera', async () => {
+      mockListaEspera.registrarNoCadastro.mockRejectedValueOnce(
+        new Error('falha no banco'),
+      );
+
+      await expect(service.create(dtoCrianca as any)).rejects.toThrow(
+        'falha no banco',
+      );
+      const comandos = comandosExecutados();
+      expect(comandos).toContain('ROLLBACK');
+      expect(comandos).not.toContain('COMMIT');
     });
 
     it('devolve as terapias do cadastro criado como lista', async () => {

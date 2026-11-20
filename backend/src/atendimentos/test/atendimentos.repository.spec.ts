@@ -13,6 +13,15 @@ describe('AtendimentosRepository', () => {
       jest.fn<
         (query: string, values?: unknown[]) => Promise<{ rows: unknown[] }>
       >(),
+    connect: jest.fn<() => Promise<unknown>>(),
+  };
+
+  const client = {
+    query:
+      jest.fn<
+        (query: string, values?: unknown[]) => Promise<{ rows: unknown[] }>
+      >(),
+    release: jest.fn(),
   };
 
   const dataInicio = new Date('2026-10-29T13:00:00.000Z');
@@ -380,5 +389,81 @@ describe('AtendimentosRepository', () => {
       'SELECT 1 FROM pacientes_tea WHERE id = $1 AND ativo = true',
       [pacienteTeaId],
     );
+  });
+
+  describe('emTransacao', () => {
+    beforeEach(() => {
+      pool.connect.mockResolvedValue(client);
+      client.query.mockResolvedValue({ rows: [] });
+    });
+
+    it('executa a operação entre BEGIN e COMMIT e libera o client', async () => {
+      const resultado = await repository.emTransacao(async (executor) => {
+        await executor.query('SELECT 1');
+        return 'ok';
+      });
+
+      expect(resultado).toBe('ok');
+      expect(client.query.mock.calls.map(([sql]) => sql)).toEqual([
+        'BEGIN',
+        'SELECT 1',
+        'COMMIT',
+      ]);
+      expect(client.release).toHaveBeenCalledTimes(1);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    it('desfaz tudo com ROLLBACK quando a operação falha', async () => {
+      const error = new Error('falha no meio da transação');
+
+      await expect(
+        repository.emTransacao(async () => {
+          throw error;
+        }),
+      ).rejects.toBe(error);
+
+      expect(client.query.mock.calls.map(([sql]) => sql)).toEqual([
+        'BEGIN',
+        'ROLLBACK',
+      ]);
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('cria o atendimento com o client da transação, quando recebido', async () => {
+    client.query.mockResolvedValue({ rows: [atendimento] });
+
+    await repository.create(
+      {
+        pacienteId,
+        isTea: false,
+        profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      },
+      client,
+    );
+
+    expect(client.query).toHaveBeenCalledTimes(1);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('atualiza o atendimento com o client da transação, quando recebido', async () => {
+    client.query.mockResolvedValue({ rows: [atendimento] });
+
+    await repository.update(
+      atendimentoId,
+      {
+        pacienteId,
+        isTea: false,
+        profissionalId: '7a63fc53-ea95-4cd7-8a59-dd45d807d696',
+        dataInicio,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      },
+      client,
+    );
+
+    expect(client.query).toHaveBeenCalledTimes(1);
+    expect(pool.query).not.toHaveBeenCalled();
   });
 });

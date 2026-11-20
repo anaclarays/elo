@@ -11,17 +11,35 @@ import {
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
 import { AtendimentosRepository } from '../atendimentos.repository';
 import { ProfissionaisService } from '../../profissionais/service/profissionais.service';
+import {
+  PacienteRef,
+  TipoPaciente,
+} from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 @Injectable()
 export class AtendimentosService {
   constructor(
     private readonly atendimentosRepository: AtendimentosRepository,
     private readonly profissionaisService: ProfissionaisService,
+    private readonly listaEsperaService: ListaEsperaService,
   ) {}
 
   async create(createAtendimentoDto: CreateAtendimentoDto) {
     await this.validateTimes(createAtendimentoDto);
-    return this.atendimentosRepository.create(createAtendimentoDto);
+
+    // O paciente agendado sai da lista de espera na mesma transação
+    return this.atendimentosRepository.emTransacao(async (client) => {
+      const atendimento = await this.atendimentosRepository.create(
+        createAtendimentoDto,
+        client,
+      );
+      await this.listaEsperaService.retirarPorAgendamento(
+        this.pacienteRef(createAtendimentoDto),
+        client,
+      );
+      return atendimento;
+    });
   }
 
   findAll(status?: StatusAtendimento) {
@@ -75,25 +93,41 @@ export class AtendimentosService {
       tipo: updateAtendimentoDto.tipo ?? atendimentoAtual.tipo,
     };
 
-    // Revalida sempre que muda o horário, o profissional ou o paciente
-    const mudouAgendamento =
-      atendimentoAtualizado.dataInicio.getTime() !==
-        new Date(atendimentoAtual.dataInicio).getTime() ||
-      atendimentoAtualizado.profissionalId !==
-        atendimentoAtual.profissionalId ||
+    const mudouPaciente =
       String(atendimentoAtualizado.pacienteId) !==
         String(atendimentoAtual.pacienteId) ||
       atendimentoAtualizado.isTea !== atendimentoAtual.isTea;
+
+    // Revalida sempre que muda o horário, o profissional ou o paciente
+    const mudouAgendamento =
+      mudouPaciente ||
+      atendimentoAtualizado.dataInicio.getTime() !==
+        new Date(atendimentoAtual.dataInicio).getTime() ||
+      atendimentoAtualizado.profissionalId !== atendimentoAtual.profissionalId;
 
     if (mudouAgendamento) {
       await this.validateTimes(atendimentoAtualizado, id);
     }
 
-    const result = await this.atendimentosRepository.update(
-      id,
-      atendimentoAtualizado,
-    );
-    return result;
+    if (!mudouPaciente) {
+      return this.atendimentosRepository.update(id, atendimentoAtualizado);
+    }
+
+    // O novo paciente do atendimento sai da lista de espera na mesma transação
+    return this.atendimentosRepository.emTransacao(async (client) => {
+      const result = await this.atendimentosRepository.update(
+        id,
+        atendimentoAtualizado,
+        client,
+      );
+      if (result) {
+        await this.listaEsperaService.retirarPorAgendamento(
+          this.pacienteRef(atendimentoAtualizado),
+          client,
+        );
+      }
+      return result;
+    });
   }
 
   // O atendimento não é apagado: fica no histórico com status "cancelado"
@@ -115,6 +149,13 @@ export class AtendimentosService {
     }
 
     return cancelado;
+  }
+
+  private pacienteRef(dto: CreateAtendimentoDto): PacienteRef {
+    return {
+      tipo: dto.isTea ? TipoPaciente.TEA : TipoPaciente.BENEFICIARIO,
+      id: dto.pacienteId,
+    };
   }
 
   // atendimentoId é informado na atualização, para o atendimento não conflitar com ele mesmo

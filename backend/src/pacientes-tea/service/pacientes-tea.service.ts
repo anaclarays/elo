@@ -17,6 +17,8 @@ import {
   CategoriaEtaria,
   Terapia,
 } from '../enum/pacientes-tea.enum';
+import { TipoPaciente } from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 // Lista fixa de campos aceitos em cada tabela
 const CAMPOS_PACIENTE = [
@@ -161,7 +163,10 @@ function montarUpdate(
 
 @Injectable()
 export class PacientesTeaService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly listaEsperaService: ListaEsperaService,
+  ) {}
 
   // ---------- CREATE ----------
   async create(dto: CreatePacienteTeaDto) {
@@ -196,6 +201,11 @@ export class PacientesTeaService {
       const dadosFamiliares = await client.query(
         inserirFamiliares.sql,
         inserirFamiliares.valores,
+      );
+
+      await this.listaEsperaService.registrarNoCadastro(
+        { tipo: TipoPaciente.TEA, id: paciente.rows[0].id },
+        client,
       );
 
       return formatarPaciente({

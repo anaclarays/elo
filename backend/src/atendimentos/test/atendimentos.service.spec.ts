@@ -16,6 +16,11 @@ import {
 } from '../dto/create-atendimento.dto';
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
 import { ProfissionaisService } from '../../profissionais/service/profissionais.service';
+import {
+  PacienteRef,
+  TipoPaciente,
+} from '../../lista-espera/enum/lista-espera.enum';
+import { ListaEsperaService } from '../../lista-espera/service/lista-espera.service';
 
 describe('AtendimentosService', () => {
   let service: AtendimentosService;
@@ -49,6 +54,19 @@ describe('AtendimentosService', () => {
     isPacienteAtivo:
       jest.fn<
         (pacienteId: number | string, isTea: boolean) => Promise<boolean>
+      >(),
+    emTransacao:
+      jest.fn<
+        (operacao: (client: unknown) => Promise<unknown>) => Promise<unknown>
+      >(),
+  };
+
+  const client = { query: jest.fn() };
+
+  const listaEsperaService = {
+    retirarPorAgendamento:
+      jest.fn<
+        (paciente: PacienteRef, executor?: unknown) => Promise<boolean>
       >(),
   };
 
@@ -88,9 +106,13 @@ describe('AtendimentosService', () => {
     service = new AtendimentosService(
       repository as unknown as AtendimentosRepository,
       profissionaisService as unknown as ProfissionaisService,
+      listaEsperaService as unknown as ListaEsperaService,
     );
 
     jest.clearAllMocks();
+
+    repository.emTransacao.mockImplementation((operacao) => operacao(client));
+    listaEsperaService.retirarPorAgendamento.mockResolvedValue(true);
 
     profissionaisService.findOne.mockResolvedValue({
       horario_inicio: '08:00',
@@ -124,7 +146,38 @@ describe('AtendimentosService', () => {
         'paciente',
         undefined,
       );
-      expect(repository.create).toHaveBeenCalledWith(createDto);
+      expect(repository.create).toHaveBeenCalledWith(createDto, client);
+    });
+
+    it('retira o paciente da lista de espera na mesma transação do agendamento', async () => {
+      repository.create.mockResolvedValue(atendimento);
+
+      await service.create(createDto);
+
+      expect(repository.emTransacao).toHaveBeenCalledTimes(1);
+      expect(listaEsperaService.retirarPorAgendamento).toHaveBeenCalledWith(
+        { tipo: TipoPaciente.BENEFICIARIO, id: pacienteId },
+        client,
+      );
+    });
+
+    it('propaga a falha ao retirar da lista de espera, para a transação ser desfeita', async () => {
+      const error = new Error('falha na lista de espera');
+      repository.create.mockResolvedValue(atendimento);
+      listaEsperaService.retirarPorAgendamento.mockRejectedValue(error);
+
+      await expect(service.create(createDto)).rejects.toBe(error);
+    });
+
+    it('não abre transação nem mexe na lista de espera quando a validação falha', async () => {
+      repository.isPacienteAtivo.mockResolvedValue(false);
+
+      await expect(service.create(createDto)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(repository.emTransacao).not.toHaveBeenCalled();
+      expect(listaEsperaService.retirarPorAgendamento).not.toHaveBeenCalled();
     });
 
     it('valida o horário e cria um atendimento de paciente TEA', async () => {
@@ -148,7 +201,11 @@ describe('AtendimentosService', () => {
         'paciente_tea',
         undefined,
       );
-      expect(repository.create).toHaveBeenCalledWith(createTeaDto);
+      expect(repository.create).toHaveBeenCalledWith(createTeaDto, client);
+      expect(listaEsperaService.retirarPorAgendamento).toHaveBeenCalledWith(
+        { tipo: TipoPaciente.TEA, id: pacienteTeaId },
+        client,
+      );
     });
 
     it('propaga falhas ao buscar o profissional', async () => {
@@ -358,6 +415,8 @@ describe('AtendimentosService', () => {
       );
       expect(profissionaisService.findOne).not.toHaveBeenCalled();
       expect(repository.hasTimeConflict).not.toHaveBeenCalled();
+      expect(repository.emTransacao).not.toHaveBeenCalled();
+      expect(listaEsperaService.retirarPorAgendamento).not.toHaveBeenCalled();
     });
 
     it('revalida o horário quando a data de início é alterada', async () => {
@@ -428,6 +487,11 @@ describe('AtendimentosService', () => {
       expect(repository.update).toHaveBeenCalledWith(
         atendimentoId,
         atendimentoAtualizado,
+        client,
+      );
+      expect(listaEsperaService.retirarPorAgendamento).toHaveBeenCalledWith(
+        { tipo: TipoPaciente.TEA, id: pacienteTeaId },
+        client,
       );
       expect(repository.isPacienteAtivo).toHaveBeenCalledWith(
         pacienteTeaId,
@@ -455,7 +519,27 @@ describe('AtendimentosService', () => {
         service.update(atendimentoId, { pacienteId, isTea: false }),
       ).resolves.toBe(atendimento);
 
-      expect(repository.update).toHaveBeenCalledWith(atendimentoId, createDto);
+      expect(repository.update).toHaveBeenCalledWith(
+        atendimentoId,
+        createDto,
+        client,
+      );
+      expect(listaEsperaService.retirarPorAgendamento).toHaveBeenCalledWith(
+        { tipo: TipoPaciente.BENEFICIARIO, id: pacienteId },
+        client,
+      );
+    });
+
+    it('não mexe na lista de espera quando o atendimento com novo paciente não é encontrado na gravação', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.update.mockResolvedValue(null);
+
+      await expect(
+        service.update(atendimentoId, { pacienteId: '99', isTea: false }),
+      ).resolves.toBeNull();
+
+      expect(repository.emTransacao).toHaveBeenCalledTimes(1);
+      expect(listaEsperaService.retirarPorAgendamento).not.toHaveBeenCalled();
     });
 
     it('exige o novo paciente ao alterar o tipo do paciente', async () => {
