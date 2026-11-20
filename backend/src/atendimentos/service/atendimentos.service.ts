@@ -46,8 +46,8 @@ export class AtendimentosService {
     }
 
     const mudouTipoPaciente =
-    updateAtendimentoDto.isTea !== undefined &&
-    updateAtendimentoDto.isTea !== atendimentoAtual.isTea;
+      updateAtendimentoDto.isTea !== undefined &&
+      updateAtendimentoDto.isTea !== atendimentoAtual.isTea;
 
     if (mudouTipoPaciente && updateAtendimentoDto.pacienteId === undefined) {
       throw new BadRequestException(
@@ -56,15 +56,28 @@ export class AtendimentosService {
     }
 
     const atendimentoAtualizado: CreateAtendimentoDto = {
-      pacienteId: updateAtendimentoDto.pacienteId ?? atendimentoAtual.pacienteId,
+      pacienteId:
+        updateAtendimentoDto.pacienteId ?? atendimentoAtual.pacienteId,
       isTea: updateAtendimentoDto.isTea ?? atendimentoAtual.isTea,
       profissionalId:
         updateAtendimentoDto.profissionalId ?? atendimentoAtual.profissionalId,
-      dataInicio: updateAtendimentoDto.dataInicio ?? atendimentoAtual.dataInicio,
+      dataInicio:
+        updateAtendimentoDto.dataInicio ?? atendimentoAtual.dataInicio,
       tipo: updateAtendimentoDto.tipo ?? atendimentoAtual.tipo,
     };
-    if (atendimentoAtual.dataInicio !== atendimentoAtualizado.dataInicio) {
-      await this.validateTimes(atendimentoAtualizado);
+
+    // Revalida sempre que muda o horário, o profissional ou o paciente
+    const mudouAgendamento =
+      atendimentoAtualizado.dataInicio.getTime() !==
+        new Date(atendimentoAtual.dataInicio).getTime() ||
+      atendimentoAtualizado.profissionalId !==
+        atendimentoAtual.profissionalId ||
+      String(atendimentoAtualizado.pacienteId) !==
+        String(atendimentoAtual.pacienteId) ||
+      atendimentoAtualizado.isTea !== atendimentoAtual.isTea;
+
+    if (mudouAgendamento) {
+      await this.validateTimes(atendimentoAtualizado, id);
     }
 
     const result = await this.atendimentosRepository.update(
@@ -82,11 +95,38 @@ export class AtendimentosService {
     }
   }
 
-  private async validateTimes(dto: CreateAtendimentoDto): Promise<void> {
+  // atendimentoId é informado na atualização, para o atendimento não conflitar com ele mesmo
+  private async validateTimes(
+    dto: CreateAtendimentoDto,
+    atendimentoId?: string,
+  ): Promise<void> {
     if (dto.dataInicio.getTime() < Date.now()) {
       throw new BadRequestException(
         'O horário solicitado corresponde a uma data passada.',
       );
+    }
+
+    const profissional = await this.profissionaisService.findOne(
+      dto.profissionalId,
+    );
+
+    if (profissional.ativo === false) {
+      throw new BadRequestException('O profissional informado está inativo.');
+    }
+
+    if (!profissional.horario_inicio || !profissional.horario_fim) {
+      throw new BadRequestException(
+        'O profissional não possui horário de atendimento cadastrado.',
+      );
+    }
+
+    if (
+      !(await this.atendimentosRepository.isPacienteAtivo(
+        dto.pacienteId,
+        dto.isTea,
+      ))
+    ) {
+      throw new NotFoundException('Paciente não encontrado ou inativo.');
     }
 
     if (
@@ -94,6 +134,7 @@ export class AtendimentosService {
         dto.profissionalId,
         dto.dataInicio,
         'profissional',
+        atendimentoId,
       )
     ) {
       throw new ConflictException(
@@ -106,6 +147,7 @@ export class AtendimentosService {
         dto.pacienteId,
         dto.dataInicio,
         dto.isTea ? 'paciente_tea' : 'paciente',
+        atendimentoId,
       )
     ) {
       throw new ConflictException(
@@ -113,21 +155,25 @@ export class AtendimentosService {
       );
     }
 
-    if (!(await this.verifyAvailability(dto.profissionalId, dto.dataInicio))) {
+    if (
+      !this.verifyAvailability(
+        profissional.horario_inicio,
+        profissional.horario_fim,
+        dto.dataInicio,
+      )
+    ) {
       throw new ConflictException(
         'O horário solicitado está fora da disponibilidade do profissional.',
       );
     }
   }
 
-  private async verifyAvailability(
-    idProfissional: string,
+  private verifyAvailability(
+    horarioInicio: string,
+    horarioFim: string,
     dataInicio: Date,
-  ): Promise<boolean> {
+  ): boolean {
     const timeZone = 'America/Recife';
-    const profissional =
-      await this.profissionaisService.findOne(idProfissional);
-    const { horario_inicio, horario_fim } = profissional;
 
     // Converte inicioAtendimento e fimAtendimento em minutos
     const minutosDoDia = (date: Date): number => {
@@ -155,11 +201,9 @@ export class AtendimentosService {
       new Date(dataInicio.getTime() + 20 * 60000),
     );
 
-    const horarioProfInicio = horarioEmMinutos(horario_inicio);
-    const horarioProfFim = horarioEmMinutos(horario_fim);
-
     return (
-      inicioAtendimento >= horarioProfInicio && fimAtendimento <= horarioProfFim
+      inicioAtendimento >= horarioEmMinutos(horarioInicio) &&
+      fimAtendimento <= horarioEmMinutos(horarioFim)
     );
   }
 }

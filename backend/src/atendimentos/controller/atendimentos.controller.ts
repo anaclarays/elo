@@ -4,16 +4,18 @@ import {
   Post,
   Body,
   Patch,
-  Put,
   Param,
   Delete,
-  ParseIntPipe,
+  ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AtendimentosService } from '../service/atendimentos.service';
 import { CreateAtendimentoDto } from '../dto/create-atendimento.dto';
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
 
 @Controller('atendimentos')
+@UseGuards(JwtAuthGuard)
 export class AtendimentosController {
   constructor(private readonly atendimentosService: AtendimentosService) {}
 
@@ -28,28 +30,20 @@ export class AtendimentosController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.atendimentosService.findOne(id);
   }
 
   @Patch(':id')
   update(
-    @Param('id', ParseIntPipe) id: string,
-    @Body() updateAtendimentoDto: UpdateAtendimentoDto,
-  ) {
-    return this.atendimentosService.update(id, updateAtendimentoDto);
-  }
-
-  @Put(':id')
-  replace(
-    @Param('id', ParseIntPipe) id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateAtendimentoDto: UpdateAtendimentoDto,
   ) {
     return this.atendimentosService.update(id, updateAtendimentoDto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.atendimentosService.remove(id);
   }
 }

@@ -306,4 +306,42 @@ describe('AtendimentosRepository', () => {
       ['7a63fc53-ea95-4cd7-8a59-dd45d807d696', dataInicio],
     );
   });
+
+  it('ignora o próprio atendimento ao verificar conflito na atualização', async () => {
+    pool.query.mockResolvedValue({ rows: [{ conflito_horario: false }] });
+
+    await repository.hasTimeConflict(
+      pacienteId,
+      dataInicio,
+      'paciente',
+      atendimentoId,
+    );
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('AND id <> $3'),
+      [pacienteId, dataInicio, atendimentoId],
+    );
+  });
+
+  it('verifica se o paciente comum existe e está ativo', async () => {
+    pool.query.mockResolvedValue({ rows: [{ '?column?': 1 }] });
+
+    await expect(repository.isPacienteAtivo(23, false)).resolves.toBe(true);
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT 1 FROM pacientes WHERE id = $1 AND ativo = true',
+      [23],
+    );
+  });
+
+  it('verifica o paciente TEA na tabela pacientes_tea', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await expect(repository.isPacienteAtivo(pacienteTeaId, true)).resolves.toBe(
+      false,
+    );
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT 1 FROM pacientes_tea WHERE id = $1 AND ativo = true',
+      [pacienteTeaId],
+    );
+  });
 });

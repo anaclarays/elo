@@ -41,9 +41,7 @@ const ATENDIMENTO_PROJECTION = [
 export class AtendimentosRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(
-    atendimento: AtendimentoParaGravar,
-  ): Promise<AtendimentoRecord> {
+  async create(atendimento: AtendimentoParaGravar): Promise<AtendimentoRecord> {
     const pacienteColumn = atendimento.isTea
       ? 'paciente_tea_id'
       : 'paciente_id';
@@ -135,16 +133,40 @@ export class AtendimentosRepository {
   async hasTimeConflict(
     outroId: number | string,
     novaDataInicio: Date,
-    pessoa: string): Promise<boolean> {
+    pessoa: 'profissional' | 'paciente' | 'paciente_tea',
+    ignorarAtendimentoId?: string,
+  ): Promise<boolean> {
+    const values: (number | string | Date)[] = [outroId, novaDataInicio];
+    let ignorarAtendimento = '';
+
+    // Na atualização, o próprio atendimento não conta como conflito
+    if (ignorarAtendimentoId !== undefined) {
+      values.push(ignorarAtendimentoId);
+      ignorarAtendimento = `AND id <> $${values.length}`;
+    }
+
     const result = await this.pool.query(
       `SELECT EXISTS (
         SELECT 1 FROM atendimentos
         WHERE ${pessoa}_id = $1
           AND data_inicio < $2::timestamptz + INTERVAL '20 minutes'
           AND data_inicio + INTERVAL '20 minutes' > $2::timestamptz
+          ${ignorarAtendimento}
       ) AS conflito_horario`,
-      [outroId, novaDataInicio],
+      values,
     );
     return result.rows[0].conflito_horario;
+  }
+
+  async isPacienteAtivo(
+    pacienteId: number | string,
+    isTea: boolean,
+  ): Promise<boolean> {
+    const tabela = isTea ? 'pacientes_tea' : 'pacientes';
+    const result = await this.pool.query(
+      `SELECT 1 FROM ${tabela} WHERE id = $1 AND ativo = true`,
+      [pacienteId],
+    );
+    return result.rows.length > 0;
   }
 }

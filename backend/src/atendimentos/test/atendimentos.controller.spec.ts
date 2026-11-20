@@ -195,59 +195,6 @@ describe('AtendimentosController', () => {
     });
   });
 
-  describe('replace', () => {
-    it('substitui e retorna o atendimento', async () => {
-      const atendimentoSubstituido = { ...atendimento, ...updateDto };
-      atendimentosService.update.mockResolvedValue(atendimentoSubstituido);
-
-      await expect(controller.replace(atendimentoId, updateDto)).resolves.toBe(
-        atendimentoSubstituido,
-      );
-      expect(atendimentosService.update).toHaveBeenCalledWith(
-        atendimentoId,
-        updateDto,
-      );
-    });
-
-    it('propaga falhas ao substituir o atendimento', async () => {
-      const error = new Error('falha ao substituir atendimento');
-      atendimentosService.update.mockRejectedValue(error);
-
-      await expect(controller.replace(atendimentoId, updateDto)).rejects.toBe(
-        error,
-      );
-      expect(atendimentosService.update).toHaveBeenCalledWith(
-        atendimentoId,
-        updateDto,
-      );
-    });
-
-    it('substitui um atendimento de paciente TEA', async () => {
-      atendimentosService.update.mockResolvedValue(atendimentoTea);
-
-      await expect(
-        controller.replace(atendimentoId, updateTeaDto),
-      ).resolves.toBe(atendimentoTea);
-      expect(atendimentosService.update).toHaveBeenCalledWith(
-        atendimentoId,
-        updateTeaDto,
-      );
-    });
-
-    it('propaga falhas ao substituir um atendimento de paciente TEA', async () => {
-      const error = new Error('falha ao substituir paciente TEA');
-      atendimentosService.update.mockRejectedValue(error);
-
-      await expect(
-        controller.replace(atendimentoId, updateTeaDto),
-      ).rejects.toBe(error);
-      expect(atendimentosService.update).toHaveBeenCalledWith(
-        atendimentoId,
-        updateTeaDto,
-      );
-    });
-  });
-
   describe('remove', () => {
     it('remove o atendimento', async () => {
       atendimentosService.remove.mockResolvedValue(undefined);

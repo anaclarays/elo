@@ -44,6 +44,21 @@ describe('CreateAtendimentoDto', () => {
       'pacienteId',
     ],
     ['id de paciente TEA vazio', { pacienteId: '', isTea: true }, 'pacienteId'],
+    [
+      'id de paciente TEA que não é UUID',
+      { pacienteId: 'abc', isTea: true },
+      'pacienteId',
+    ],
+    [
+      'profissional que não é UUID',
+      { profissionalId: 'abc' },
+      'profissionalId',
+    ],
+    [
+      'data de início sem fuso horário',
+      { dataInicio: '2030-10-29T10:00:00' },
+      'dataInicio',
+    ],
     ['profissional vazio', { profissionalId: '' }, 'profissionalId'],
     ['profissional não string', { profissionalId: 23 }, 'profissionalId'],
     [
@@ -69,5 +84,15 @@ describe('CreateAtendimentoDto', () => {
     const erros = await validar({ ...dtoValido, isTea: undefined });
 
     expect(temErro(erros, 'isTea')).toBe(true);
+  });
+
+  it('converte a data de início enviada como texto no JSON', async () => {
+    const dto = plainToInstance(CreateAtendimentoDto, {
+      ...dtoValido,
+      dataInicio: '2030-10-29T10:00:00-03:00',
+    });
+
+    expect(await validate(dto)).toHaveLength(0);
+    expect(dto.dataInicio).toEqual(new Date('2030-10-29T13:00:00.000Z'));
   });
 });

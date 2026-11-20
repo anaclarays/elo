@@ -38,15 +38,23 @@ describe('AtendimentosService', () => {
           outroId: number | string,
           dataInicio: Date,
           pessoa: string,
+          ignorarAtendimentoId?: string,
         ) => Promise<boolean>
+      >(),
+    isPacienteAtivo:
+      jest.fn<
+        (pacienteId: number | string, isTea: boolean) => Promise<boolean>
       >(),
   };
 
   const profissionaisService = {
-    findOne:
-      jest.fn<
-        (id: string) => Promise<{ horario_inicio: string; horario_fim: string }>
-      >(),
+    findOne: jest.fn<
+      (id: string) => Promise<{
+        horario_inicio: string | null;
+        horario_fim: string | null;
+        ativo?: boolean;
+      }>
+    >(),
   };
 
   const atendimentoId = 'e695038b-6355-4db4-b833-48f5062a3aab';
@@ -82,6 +90,7 @@ describe('AtendimentosService', () => {
     });
 
     repository.hasTimeConflict.mockResolvedValue(false);
+    repository.isPacienteAtivo.mockResolvedValue(true);
   });
 
   describe('create', () => {
@@ -98,12 +107,14 @@ describe('AtendimentosService', () => {
         createDto.profissionalId,
         dataInicio,
         'profissional',
+        undefined,
       );
       expect(repository.hasTimeConflict).toHaveBeenNthCalledWith(
         2,
         createDto.pacienteId,
         dataInicio,
         'paciente',
+        undefined,
       );
       expect(repository.create).toHaveBeenCalledWith(createDto);
     });
@@ -127,6 +138,7 @@ describe('AtendimentosService', () => {
         pacienteTeaId,
         dataInicio,
         'paciente_tea',
+        undefined,
       );
       expect(repository.create).toHaveBeenCalledWith(createTeaDto);
     });
@@ -157,6 +169,7 @@ describe('AtendimentosService', () => {
         pacienteTeaId,
         dataInicio,
         'paciente_tea',
+        undefined,
       );
       expect(repository.create).not.toHaveBeenCalled();
     });
@@ -197,6 +210,7 @@ describe('AtendimentosService', () => {
         createDto.profissionalId,
         dataInicio,
         'profissional',
+        undefined,
       );
       expect(repository.create).not.toHaveBeenCalled();
     });
@@ -215,7 +229,47 @@ describe('AtendimentosService', () => {
         createDto.pacienteId,
         dataInicio,
         'paciente',
+        undefined,
       );
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejeita profissional inativo', async () => {
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: '08:00',
+        horario_fim: '17:00',
+        ativo: false,
+      });
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejeita profissional sem horário de atendimento cadastrado', async () => {
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: null,
+        horario_fim: null,
+      });
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejeita paciente inexistente ou inativo', async () => {
+      repository.isPacienteAtivo.mockResolvedValue(false);
+
+      await expect(service.create(createDto)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(repository.isPacienteAtivo).toHaveBeenCalledWith(
+        createDto.pacienteId,
+        false,
+      );
+      expect(repository.hasTimeConflict).not.toHaveBeenCalled();
       expect(repository.create).not.toHaveBeenCalled();
     });
 
@@ -286,9 +340,9 @@ describe('AtendimentosService', () => {
       repository.findOne.mockResolvedValue(atendimento);
       repository.update.mockResolvedValue(registroAtualizado);
 
-      await expect(
-        service.update(atendimentoId, updateDto),
-      ).resolves.toBe(registroAtualizado);
+      await expect(service.update(atendimentoId, updateDto)).resolves.toBe(
+        registroAtualizado,
+      );
 
       expect(repository.update).toHaveBeenCalledWith(
         atendimentoId,
@@ -315,9 +369,9 @@ describe('AtendimentosService', () => {
       repository.findOne.mockResolvedValue(atendimento);
       repository.update.mockResolvedValue(registroAtualizado);
 
-      await expect(
-        service.update(atendimentoId, updateDto),
-      ).resolves.toBe(registroAtualizado);
+      await expect(service.update(atendimentoId, updateDto)).resolves.toBe(
+        registroAtualizado,
+      );
 
       expect(profissionaisService.findOne).toHaveBeenCalledWith(
         atendimento.profissionalId,
@@ -327,12 +381,14 @@ describe('AtendimentosService', () => {
         atendimento.profissionalId,
         novaDataInicio,
         'profissional',
+        atendimentoId,
       );
       expect(repository.hasTimeConflict).toHaveBeenNthCalledWith(
         2,
         atendimento.pacienteId,
         novaDataInicio,
         'paciente',
+        atendimentoId,
       );
       expect(repository.update).toHaveBeenCalledWith(
         atendimentoId,
@@ -357,15 +413,25 @@ describe('AtendimentosService', () => {
       repository.findOne.mockResolvedValue(atendimento);
       repository.update.mockResolvedValue(registroAtualizado);
 
-      await expect(
-        service.update(atendimentoId, updateDto),
-      ).resolves.toBe(registroAtualizado);
+      await expect(service.update(atendimentoId, updateDto)).resolves.toBe(
+        registroAtualizado,
+      );
 
       expect(repository.update).toHaveBeenCalledWith(
         atendimentoId,
         atendimentoAtualizado,
       );
-      expect(repository.hasTimeConflict).not.toHaveBeenCalled();
+      expect(repository.isPacienteAtivo).toHaveBeenCalledWith(
+        pacienteTeaId,
+        true,
+      );
+      expect(repository.hasTimeConflict).toHaveBeenNthCalledWith(
+        2,
+        pacienteTeaId,
+        dataInicio,
+        'paciente_tea',
+        atendimentoId,
+      );
     });
 
     it('altera para paciente comum quando o novo paciente é informado', async () => {
@@ -406,6 +472,56 @@ describe('AtendimentosService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('revalida quando apenas o profissional é alterado', async () => {
+      const outroProfissionalId = 'c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b';
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.update.mockResolvedValue(atendimento);
+
+      await service.update(atendimentoId, {
+        profissionalId: outroProfissionalId,
+      });
+
+      expect(profissionaisService.findOne).toHaveBeenCalledWith(
+        outroProfissionalId,
+      );
+      expect(repository.hasTimeConflict).toHaveBeenNthCalledWith(
+        1,
+        outroProfissionalId,
+        dataInicio,
+        'profissional',
+        atendimentoId,
+      );
+    });
+
+    it('rejeita trocar para um profissional inativo', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: '08:00',
+        horario_fim: '17:00',
+        ativo: false,
+      });
+
+      await expect(
+        service.update(atendimentoId, {
+          profissionalId: 'c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('ignora o próprio atendimento ao verificar conflitos', async () => {
+      const novaDataInicio = new Date('2030-10-29T13:10:00.000Z');
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.update.mockResolvedValue(atendimento);
+
+      await service.update(atendimentoId, { dataInicio: novaDataInicio });
+
+      for (const chamada of repository.hasTimeConflict.mock.calls) {
+        expect(chamada[3]).toBe(atendimentoId);
+      }
+      expect(repository.update).toHaveBeenCalled();
     });
 
     it('rejeita uma atualização vazia', async () => {
@@ -492,6 +608,7 @@ describe('AtendimentosService', () => {
         pacienteTeaId,
         novaDataInicio,
         'paciente_tea',
+        atendimentoId,
       );
       expect(repository.update).not.toHaveBeenCalled();
     });
@@ -504,7 +621,7 @@ describe('AtendimentosService', () => {
         service.update(atendimentoId, { tipo: TipoAtendimento.PEDAGOGIA }),
       ).resolves.toBeNull();
     });
-    
+
     it('propaga falhas ao atualizar o atendimento no repositório', async () => {
       const error = new Error('falha de persistência');
       repository.findOne.mockResolvedValue(atendimento);
