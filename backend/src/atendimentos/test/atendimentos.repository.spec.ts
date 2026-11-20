@@ -1,7 +1,10 @@
 import { jest } from '@jest/globals';
 import type { Pool } from 'pg';
 import { AtendimentosRepository } from '../atendimentos.repository';
-import { TipoAtendimento } from '../dto/create-atendimento.dto';
+import {
+  StatusAtendimento,
+  TipoAtendimento,
+} from '../dto/create-atendimento.dto';
 
 describe('AtendimentosRepository', () => {
   let repository: AtendimentosRepository;
@@ -153,6 +156,19 @@ describe('AtendimentosRepository', () => {
     await expect(repository.findAll()).resolves.toEqual([atendimento]);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining('ORDER BY data_inicio DESC, id DESC'),
+      [],
+    );
+    expect(pool.query.mock.calls[0][0]).not.toContain('WHERE');
+  });
+
+  it('filtra a listagem pelo status quando informado', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await repository.findAll(StatusAtendimento.CANCELADO);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE status = $1'),
+      ['cancelado'],
     );
   });
 
@@ -251,20 +267,41 @@ describe('AtendimentosRepository', () => {
     ).resolves.toBeNull();
   });
 
-  it('retorna true quando remove um atendimento', async () => {
-    pool.query.mockResolvedValue({ rows: [{ id: atendimentoId }] });
+  it('cancela sem apagar, gravando a data e o motivo', async () => {
+    pool.query.mockResolvedValue({ rows: [atendimento] });
 
-    await expect(repository.remove(atendimentoId)).resolves.toBe(true);
-    expect(pool.query).toHaveBeenCalledWith(
-      'DELETE FROM atendimentos WHERE id = $1 RETURNING id',
-      [atendimentoId],
-    );
+    await expect(
+      repository.cancel(atendimentoId, 'Paciente viajou'),
+    ).resolves.toEqual(atendimento);
+
+    const [sql, valores] = pool.query.mock.calls[0];
+    expect(sql).toContain("SET status = 'cancelado'");
+    expect(sql).toContain('cancelado_em = now()');
+    expect(sql).toContain("WHERE id = $1 AND status = 'agendado'");
+    expect(sql).not.toContain('DELETE');
+    expect(valores).toEqual([atendimentoId, 'Paciente viajou']);
   });
 
-  it('retorna false quando não encontra um atendimento para remover', async () => {
+  it('grava motivo nulo quando ele não é informado', async () => {
+    pool.query.mockResolvedValue({ rows: [atendimento] });
+
+    await repository.cancel(atendimentoId);
+
+    expect(pool.query.mock.calls[0][1]).toEqual([atendimentoId, null]);
+  });
+
+  it('retorna null quando não há atendimento agendado para cancelar', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
-    await expect(repository.remove(atendimentoId)).resolves.toBe(false);
+    await expect(repository.cancel(atendimentoId)).resolves.toBeNull();
+  });
+
+  it('ignora atendimentos cancelados ao verificar conflito de horário', async () => {
+    pool.query.mockResolvedValue({ rows: [{ conflito_horario: false }] });
+
+    await repository.hasTimeConflict(pacienteId, dataInicio, 'paciente');
+
+    expect(pool.query.mock.calls[0][0]).toContain("AND status = 'agendado'");
   });
 
   it('identifica conflito de horário para o mesmo paciente', async () => {

@@ -11,6 +11,7 @@ import {
 } from '../atendimentos.repository';
 import {
   CreateAtendimentoDto,
+  StatusAtendimento,
   TipoAtendimento,
 } from '../dto/create-atendimento.dto';
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
@@ -27,7 +28,8 @@ describe('AtendimentosService', () => {
   const repository = {
     create:
       jest.fn<(dto: CreateAtendimentoDto) => Promise<AtendimentoRecord>>(),
-    findAll: jest.fn<() => Promise<AtendimentoRecord[]>>(),
+    findAll:
+      jest.fn<(status?: StatusAtendimento) => Promise<AtendimentoRecord[]>>(),
     findOne: jest.fn<(id: string) => Promise<AtendimentoRecord | null>>(),
     update:
       jest.fn<
@@ -36,7 +38,10 @@ describe('AtendimentosService', () => {
           dto: CreateAtendimentoDto,
         ) => Promise<AtendimentoRecord | null>
       >(),
-    remove: jest.fn<(id: string) => Promise<boolean>>(),
+    cancel:
+      jest.fn<
+        (id: string, motivo?: string) => Promise<AtendimentoRecord | null>
+      >(),
     hasTimeConflict:
       jest.fn<
         (
@@ -92,6 +97,9 @@ describe('AtendimentosService', () => {
     id: atendimentoId,
     ...createDto,
     dataFim: new Date(dataInicio.getTime() + 20 * 60000),
+    status: StatusAtendimento.AGENDADO,
+    canceladoEm: null,
+    motivoCancelamento: null,
   };
 
   beforeEach(async () => {
@@ -717,28 +725,82 @@ describe('AtendimentosService', () => {
     });
   });
 
-  describe('remove', () => {
-    it('remove o atendimento existente', async () => {
-      repository.remove.mockResolvedValue(true);
+  describe('cancel', () => {
+    const atendimentoCancelado: AtendimentoRecord = {
+      ...atendimento,
+      status: StatusAtendimento.CANCELADO,
+      canceladoEm: new Date('2030-10-28T12:00:00.000Z'),
+      motivoCancelamento: 'Paciente viajou',
+    };
 
-      await expect(service.remove(atendimentoId)).resolves.toBeUndefined();
-      expect(repository.remove).toHaveBeenCalledWith(atendimentoId);
+    it('cancela o atendimento mantendo o histórico, com o motivo', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.cancel.mockResolvedValue(atendimentoCancelado);
+
+      await expect(
+        service.cancel(atendimentoId, '  Paciente viajou  '),
+      ).resolves.toBe(atendimentoCancelado);
+      expect(repository.cancel).toHaveBeenCalledWith(
+        atendimentoId,
+        'Paciente viajou',
+      );
     });
 
-    it('lança NotFoundException quando o atendimento a remover não existe', async () => {
-      repository.remove.mockResolvedValue(false);
+    it('cancela sem motivo quando ele não é informado ou está vazio', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.cancel.mockResolvedValue(atendimentoCancelado);
 
-      await expect(service.remove(atendimentoId)).rejects.toBeInstanceOf(
+      await service.cancel(atendimentoId, '   ');
+
+      expect(repository.cancel).toHaveBeenCalledWith(atendimentoId, undefined);
+    });
+
+    it('lança NotFoundException quando o atendimento não existe', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(service.cancel(atendimentoId)).rejects.toBeInstanceOf(
         NotFoundException,
       );
-      expect(repository.remove).toHaveBeenCalledWith(atendimentoId);
+      expect(repository.cancel).not.toHaveBeenCalled();
     });
 
-    it('propaga falhas ao remover o atendimento', async () => {
-      const error = new Error('falha de persistência');
-      repository.remove.mockRejectedValue(error);
+    it('rejeita cancelar um atendimento já cancelado', async () => {
+      repository.findOne.mockResolvedValue(atendimentoCancelado);
 
-      await expect(service.remove(atendimentoId)).rejects.toBe(error);
+      await expect(service.cancel(atendimentoId)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(repository.cancel).not.toHaveBeenCalled();
     });
+
+    it('rejeita quando outra requisição cancelou o atendimento antes', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      repository.cancel.mockResolvedValue(null);
+
+      await expect(service.cancel(atendimentoId)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
+  it('não permite alterar um atendimento cancelado', async () => {
+    repository.findOne.mockResolvedValue({
+      ...atendimento,
+      status: StatusAtendimento.CANCELADO,
+      canceladoEm: new Date('2030-10-28T12:00:00.000Z'),
+    });
+
+    await expect(
+      service.update(atendimentoId, { tipo: TipoAtendimento.PEDAGOGIA }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('repassa o filtro de status na listagem', async () => {
+    repository.findAll.mockResolvedValue([atendimento]);
+
+    await service.findAll(StatusAtendimento.AGENDADO);
+
+    expect(repository.findAll).toHaveBeenCalledWith(StatusAtendimento.AGENDADO);
   });
 });

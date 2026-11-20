@@ -18,6 +18,11 @@ export enum TipoAtendimento {
   PEDAGOGIA = 'pedagogia',
 }
 
+export enum StatusAtendimento {
+  AGENDADO = 'agendado',
+  CANCELADO = 'cancelado',
+}
+
 @ValidatorConstraint({ name: 'pacienteIdPorTipo', async: false })
 class PacienteIdPorTipoConstraint implements ValidatorConstraintInterface {
   validate(value: unknown, args: ValidationArguments): boolean {
