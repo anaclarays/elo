@@ -8,6 +8,7 @@ import { ProfissionaisModule } from './profissionais/profissionais.module';
 import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
 import { ListaEsperaModule } from './lista-espera/lista-espera.module';
+import { AtendimentosModule } from './atendimentos/atendimentos.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ListaEsperaModule } from './lista-espera/lista-espera.module';
     PacientesTeaModule,
     AuthModule,
     ListaEsperaModule,
+    AtendimentosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
