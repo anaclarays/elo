@@ -99,14 +99,14 @@ describe('HistoricoClinicoService', () => {
       expect(sqlRegistros()).toContain('ORDER BY r.data_realizacao DESC');
     });
 
-    it('lança NotFoundException quando o paciente não existe ou está inativo', async () => {
+    it('lança NotFoundException quando a consulta não encontra o paciente (inexistente ou inativo)', async () => {
       simular(null);
 
-      await expect(
-        service.listarPorPacienteTea(pacienteTea.id, {}),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(NotFoundException);
       expect(mockPool.query).toHaveBeenCalledTimes(1);
-      expect(String(mockPool.query.mock.calls[0][0])).toContain('ativo = true');
+      expect(String(mockPool.query.mock.calls[0][0])).toContain(
+        'FROM pacientes WHERE id = $1 AND ativo = true',
+      );
     });
 
     it('devolve lista vazia quando o paciente ainda não tem registros', async () => {
@@ -234,11 +234,13 @@ describe('HistoricoClinicoService', () => {
       expect(valoresRegistros()).toEqual([paciente.id]);
     });
 
-    it('lança NotFoundException quando o paciente não existe ou está inativo', async () => {
+    it('lança NotFoundException quando a consulta não encontra o paciente (inexistente ou inativo)', async () => {
       simular(null);
 
-      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(
-        NotFoundException,
+      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(NotFoundException);
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
+      expect(String(mockPool.query.mock.calls[0][0])).toContain(
+        'FROM pacientes WHERE id = $1 AND ativo = true',
       );
     });
 
@@ -283,14 +285,12 @@ describe('HistoricoClinicoService', () => {
       expect(mockPool.query.mock.calls[0][1]).toEqual(['r1']);
     });
 
-    it('só considera registros de pacientes ativos', async () => {
+    it('só considera registros de pacientes ativos (TEA ou aprendizagem)', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [detalhe] });
 
       await service.buscarRegistro('r1');
 
-      expect(String(mockPool.query.mock.calls[0][0])).toContain(
-        'COALESCE(pt.ativo, p.ativo) = true',
-      );
+      expect(String(mockPool.query.mock.calls[0][0])).toContain('COALESCE(pt.ativo, p.ativo) = true');
     });
 
     it('lança NotFoundException quando o registro não existe', async () => {
