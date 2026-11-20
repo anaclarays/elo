@@ -3,6 +3,7 @@ import { AtendimentosController } from '../controller/atendimentos.controller';
 import { AtendimentosService } from '../service/atendimentos.service';
 import {
   CreateAtendimentoDto,
+  StatusAtendimento,
   TipoAtendimento,
 } from '../dto/create-atendimento.dto';
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
@@ -14,7 +15,8 @@ describe('AtendimentosController', () => {
   const atendimentosService = {
     create:
       jest.fn<(dto: CreateAtendimentoDto) => Promise<AtendimentoRecord>>(),
-    findAll: jest.fn<() => Promise<AtendimentoRecord[]>>(),
+    findAll:
+      jest.fn<(status?: StatusAtendimento) => Promise<AtendimentoRecord[]>>(),
     findOne: jest.fn<(id: string) => Promise<AtendimentoRecord>>(),
     update:
       jest.fn<
@@ -23,7 +25,8 @@ describe('AtendimentosController', () => {
           dto: UpdateAtendimentoDto,
         ) => Promise<AtendimentoRecord | null>
       >(),
-    remove: jest.fn<(id: string) => Promise<void>>(),
+    cancel:
+      jest.fn<(id: string, motivo?: string) => Promise<AtendimentoRecord>>(),
   };
 
   const atendimentoId = 'e695038b-6355-4db4-b833-48f5062a3aab';
@@ -57,6 +60,9 @@ describe('AtendimentosController', () => {
     id: atendimentoId,
     ...createDto,
     dataFim: new Date(dataInicio.getTime() + 20 * 60000),
+    status: StatusAtendimento.AGENDADO,
+    canceladoEm: null,
+    motivoCancelamento: null,
   };
 
   const atendimentoTea: AtendimentoRecord = {
@@ -195,20 +201,40 @@ describe('AtendimentosController', () => {
     });
   });
 
-  describe('remove', () => {
-    it('remove o atendimento', async () => {
-      atendimentosService.remove.mockResolvedValue(undefined);
+  describe('cancel', () => {
+    it('cancela o atendimento repassando o motivo', async () => {
+      const cancelado: AtendimentoRecord = {
+        ...atendimento,
+        status: StatusAtendimento.CANCELADO,
+        canceladoEm: new Date('2030-10-28T12:00:00.000Z'),
+        motivoCancelamento: 'Paciente viajou',
+      };
+      atendimentosService.cancel.mockResolvedValue(cancelado);
 
-      await expect(controller.remove(atendimentoId)).resolves.toBeUndefined();
-      expect(atendimentosService.remove).toHaveBeenCalledWith(atendimentoId);
+      await expect(
+        controller.cancel(atendimentoId, { motivo: 'Paciente viajou' }),
+      ).resolves.toBe(cancelado);
+      expect(atendimentosService.cancel).toHaveBeenCalledWith(
+        atendimentoId,
+        'Paciente viajou',
+      );
     });
 
-    it('propaga falhas ao remover o atendimento', async () => {
-      const error = new Error('falha ao remover atendimento');
-      atendimentosService.remove.mockRejectedValue(error);
+    it('propaga falhas ao cancelar o atendimento', async () => {
+      const error = new Error('falha ao cancelar atendimento');
+      atendimentosService.cancel.mockRejectedValue(error);
 
-      await expect(controller.remove(atendimentoId)).rejects.toBe(error);
-      expect(atendimentosService.remove).toHaveBeenCalledWith(atendimentoId);
+      await expect(controller.cancel(atendimentoId, {})).rejects.toBe(error);
     });
+  });
+
+  it('repassa o filtro de status na listagem', async () => {
+    atendimentosService.findAll.mockResolvedValue([]);
+
+    await controller.findAll(StatusAtendimento.CANCELADO);
+
+    expect(atendimentosService.findAll).toHaveBeenCalledWith(
+      StatusAtendimento.CANCELADO,
+    );
   });
 });

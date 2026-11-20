@@ -4,7 +4,10 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { CreateAtendimentoDto } from '../dto/create-atendimento.dto';
+import {
+  CreateAtendimentoDto,
+  StatusAtendimento,
+} from '../dto/create-atendimento.dto';
 import { UpdateAtendimentoDto } from '../dto/update-atendimento.dto';
 import { AtendimentosRepository } from '../atendimentos.repository';
 import { ProfissionaisService } from '../../profissionais/service/profissionais.service';
@@ -21,8 +24,8 @@ export class AtendimentosService {
     return this.atendimentosRepository.create(createAtendimentoDto);
   }
 
-  findAll() {
-    return this.atendimentosRepository.findAll();
+  findAll(status?: StatusAtendimento) {
+    return this.atendimentosRepository.findAll(status);
   }
 
   async findOne(id: string) {
@@ -43,6 +46,12 @@ export class AtendimentosService {
     const atendimentoAtual = await this.atendimentosRepository.findOne(id);
     if (!atendimentoAtual) {
       throw new NotFoundException(`Atendimento com id ${id} não encontrado.`);
+    }
+
+    if (atendimentoAtual.status === StatusAtendimento.CANCELADO) {
+      throw new BadRequestException(
+        'Não é possível alterar um atendimento cancelado.',
+      );
     }
 
     const mudouTipoPaciente =
@@ -87,12 +96,25 @@ export class AtendimentosService {
     return result;
   }
 
-  async remove(id: string) {
-    const removed = await this.atendimentosRepository.remove(id);
+  // O atendimento não é apagado: fica no histórico com status "cancelado"
+  async cancel(id: string, motivo?: string) {
+    const atendimento = await this.findOne(id);
 
-    if (!removed) {
-      throw new NotFoundException(`Atendimento com id ${id} não encontrado.`);
+    if (atendimento.status === StatusAtendimento.CANCELADO) {
+      throw new ConflictException('Este atendimento já foi cancelado.');
     }
+
+    const cancelado = await this.atendimentosRepository.cancel(
+      id,
+      motivo?.trim() || undefined,
+    );
+
+    // Outra requisição pode ter cancelado o atendimento entre a busca e o UPDATE
+    if (!cancelado) {
+      throw new ConflictException('Este atendimento já foi cancelado.');
+    }
+
+    return cancelado;
   }
 
   // atendimentoId é informado na atualização, para o atendimento não conflitar com ele mesmo

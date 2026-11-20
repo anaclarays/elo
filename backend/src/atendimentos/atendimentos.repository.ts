@@ -1,7 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.constants';
-import { CreateAtendimentoDto } from './dto/create-atendimento.dto';
+import {
+  CreateAtendimentoDto,
+  StatusAtendimento,
+} from './dto/create-atendimento.dto';
 
 type AtendimentoPersistido = Omit<CreateAtendimentoDto, 'isTea'>;
 type AtendimentoCamposComuns = Omit<AtendimentoPersistido, 'pacienteId'>;
@@ -15,6 +18,9 @@ export interface AtendimentoRecord extends AtendimentoPersistido {
   id: string;
   dataFim: Date;
   isTea: boolean;
+  status: StatusAtendimento;
+  canceladoEm: Date | null;
+  motivoCancelamento: string | null;
 }
 
 const ATENDIMENTO_COLUMNS = {
@@ -35,6 +41,9 @@ const ATENDIMENTO_PROJECTION = [
   ...ATENDIMENTO_FIELDS.map(
     (field) => `${ATENDIMENTO_COLUMNS[field]} AS "${field}"`,
   ),
+  'status',
+  'cancelado_em AS "canceladoEm"',
+  'motivo_cancelamento AS "motivoCancelamento"',
 ].join(', ');
 
 @Injectable()
@@ -74,9 +83,11 @@ export class AtendimentosRepository {
     return result.rows[0] as AtendimentoRecord;
   }
 
-  async findAll(): Promise<AtendimentoRecord[]> {
+  async findAll(status?: StatusAtendimento): Promise<AtendimentoRecord[]> {
+    const filtro = status ? 'WHERE status = $1' : '';
     const result = await this.pool.query(
-      `SELECT ${ATENDIMENTO_PROJECTION} FROM atendimentos ORDER BY data_inicio DESC, id DESC`,
+      `SELECT ${ATENDIMENTO_PROJECTION} FROM atendimentos ${filtro} ORDER BY data_inicio DESC, id DESC`,
+      status ? [status] : [],
     );
     return result.rows as AtendimentoRecord[];
   }
@@ -122,12 +133,18 @@ export class AtendimentosRepository {
     return (result.rows[0] as AtendimentoRecord | undefined) ?? null;
   }
 
-  async remove(id: string) {
+  // Cancela sem apagar: o atendimento continua no histórico com status "cancelado"
+  async cancel(id: string, motivo?: string): Promise<AtendimentoRecord | null> {
     const result = await this.pool.query(
-      'DELETE FROM atendimentos WHERE id = $1 RETURNING id',
-      [id],
+      `UPDATE atendimentos
+      SET status = 'cancelado',
+          cancelado_em = now(),
+          motivo_cancelamento = $2
+      WHERE id = $1 AND status = 'agendado'
+      RETURNING ${ATENDIMENTO_PROJECTION}`,
+      [id, motivo ?? null],
     );
-    return result.rows.length > 0;
+    return (result.rows[0] as AtendimentoRecord | undefined) ?? null;
   }
 
   async hasTimeConflict(
@@ -151,6 +168,7 @@ export class AtendimentosRepository {
         WHERE ${pessoa}_id = $1
           AND data_inicio < $2::timestamptz + INTERVAL '20 minutes'
           AND data_inicio + INTERVAL '20 minutes' > $2::timestamptz
+          AND status = 'agendado'
           ${ignorarAtendimento}
       ) AS conflito_horario`,
       values,
