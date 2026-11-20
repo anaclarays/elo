@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.constants';
+import { ExecutorSql } from '../lista-espera/lista-espera.repository';
 import { CreateAtendimentoDto } from './dto/create-atendimento.dto';
 
 type AtendimentoPersistido = Omit<CreateAtendimentoDto, 'isTea'>;
@@ -41,7 +42,27 @@ const ATENDIMENTO_PROJECTION = [
 export class AtendimentosRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(atendimento: AtendimentoParaGravar): Promise<AtendimentoRecord> {
+  async emTransacao<T>(
+    operacao: (client: ExecutorSql) => Promise<T>,
+  ): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const resultado = await operacao(client);
+      await client.query('COMMIT');
+      return resultado;
+    } catch (erro) {
+      await client.query('ROLLBACK');
+      throw erro;
+    } finally {
+      client.release();
+    }
+  }
+
+  async create(
+    atendimento: AtendimentoParaGravar,
+    executor: ExecutorSql = this.pool,
+  ): Promise<AtendimentoRecord> {
     const pacienteColumn = atendimento.isTea
       ? 'paciente_tea_id'
       : 'paciente_id';
@@ -58,7 +79,7 @@ export class AtendimentosRepository {
 
     const placeholders = values.map((_, index) => `$${index + 1}`);
 
-    const result = await this.pool.query(
+    const result = await executor.query(
       `INSERT INTO atendimentos (${columns.join(', ')})
       VALUES (${placeholders.join(', ')})
       RETURNING ${ATENDIMENTO_PROJECTION}`,
@@ -92,6 +113,7 @@ export class AtendimentosRepository {
   async update(
     id: string,
     atendimento: AtendimentoParaGravar,
+    executor: ExecutorSql = this.pool,
   ): Promise<AtendimentoRecord | null> {
     const pacienteColumn = atendimento.isTea
       ? 'paciente_tea_id'
@@ -101,7 +123,7 @@ export class AtendimentosRepository {
       ? 'paciente_id'
       : 'paciente_tea_id';
 
-    const result = await this.pool.query(
+    const result = await executor.query(
       `UPDATE atendimentos
       SET ${pacienteColumn} = $1,
           ${outraPacienteColumn} = NULL,
