@@ -7,6 +7,7 @@ import { PacientesModule } from './pacientes/pacientes.module';
 import { ProfissionaisModule } from './profissionais/profissionais.module';
 import { PacientesTeaModule } from './pacientes-tea/pacientes-tea.module';
 import { AuthModule } from './auth/auth.module';
+import { HistoricoClinicoModule } from './historico-clinico/historico-clinico.module';
 import { ListaEsperaModule } from './lista-espera/lista-espera.module';
 import { AtendimentosModule } from './atendimentos/atendimentos.module';
 
@@ -17,6 +18,7 @@ import { AtendimentosModule } from './atendimentos/atendimentos.module';
     PacientesModule,
     ProfissionaisModule,
     PacientesTeaModule,
+    HistoricoClinicoModule,
     AuthModule,
     ListaEsperaModule,
     AtendimentosModule,
