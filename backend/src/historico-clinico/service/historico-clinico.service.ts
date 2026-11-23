@@ -10,6 +10,9 @@ import { FiltrosHistoricoDto } from '../dto/filtros-historico.dto';
 
 type ColunaPaciente = 'paciente_id' | 'paciente_tea_id';
 
+// Maior valor de uma coluna INTEGER no Postgres
+const MAIOR_ID_INTEIRO = 2147483647;
+
 // Dados de identificação do paciente (só cadastros ativos)
 const SQL_PACIENTE = `SELECT id, numero_cadastro AS "numeroCadastro", nome_beneficiario AS nome
   FROM pacientes WHERE id = $1 AND ativo = true`;
@@ -23,6 +26,10 @@ export class HistoricoClinicoService {
   // Histórico de um paciente do cadastro de aprendizagem
   async listarPorPaciente(pacienteId: number, filtros: FiltrosHistoricoDto) {
     this.validarPeriodo(filtros);
+    // Id fora do limite do INTEGER faria o banco dar erro: não existe paciente com esse id
+    if (pacienteId < 1 || pacienteId > MAIOR_ID_INTEIRO) {
+      throw new NotFoundException('Paciente não encontrado');
+    }
     const paciente = await this.buscarPaciente(SQL_PACIENTE, pacienteId);
     const registros = await this.buscarRegistros(
       'paciente_id',

@@ -1,6 +1,6 @@
 -- Dados fictícios para testar o histórico clínico (RF06).
 -- Use somente em desenvolvimento. Pode ser executado várias vezes: não duplica nada.
--- Pré-requisitos: scripts 002 e 003 aplicados e ao menos 1 profissional ativo.
+-- Pré-requisitos: scripts 002, 003 e 006 aplicados e ao menos 1 profissional ativo.
 
 DO $$
 DECLARE

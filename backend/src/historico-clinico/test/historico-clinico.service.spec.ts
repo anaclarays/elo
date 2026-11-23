@@ -102,7 +102,9 @@ describe('HistoricoClinicoService', () => {
     it('lança NotFoundException quando a consulta não encontra o paciente (inexistente ou inativo)', async () => {
       simular(null);
 
-      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(NotFoundException);
+      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(
+        NotFoundException,
+      );
       expect(mockPool.query).toHaveBeenCalledTimes(1);
       expect(String(mockPool.query.mock.calls[0][0])).toContain(
         'FROM pacientes WHERE id = $1 AND ativo = true',
@@ -237,12 +239,24 @@ describe('HistoricoClinicoService', () => {
     it('lança NotFoundException quando a consulta não encontra o paciente (inexistente ou inativo)', async () => {
       simular(null);
 
-      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(NotFoundException);
+      await expect(service.listarPorPaciente(paciente.id, {})).rejects.toThrow(
+        NotFoundException,
+      );
       expect(mockPool.query).toHaveBeenCalledTimes(1);
       expect(String(mockPool.query.mock.calls[0][0])).toContain(
         'FROM pacientes WHERE id = $1 AND ativo = true',
       );
     });
+
+    it.each([0, -1, 2147483648, 99999999999])(
+      'lança NotFoundException sem consultar o banco quando o id (%p) está fora do limite',
+      async (id) => {
+        await expect(service.listarPorPaciente(id, {})).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(mockPool.query).not.toHaveBeenCalled();
+      },
+    );
 
     it('também aceita o filtro por tipo', async () => {
       simular(paciente);
@@ -290,7 +304,9 @@ describe('HistoricoClinicoService', () => {
 
       await service.buscarRegistro('r1');
 
-      expect(String(mockPool.query.mock.calls[0][0])).toContain('COALESCE(pt.ativo, p.ativo) = true');
+      expect(String(mockPool.query.mock.calls[0][0])).toContain(
+        'COALESCE(pt.ativo, p.ativo) = true',
+      );
     });
 
     it('lança NotFoundException quando o registro não existe', async () => {
