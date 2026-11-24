@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { HistoricoClinicoModule } from './historico-clinico/historico-clinico.module';
 import { ListaEsperaModule } from './lista-espera/lista-espera.module';
 import { AtendimentosModule } from './atendimentos/atendimentos.module';
+import { RelatoriosModule } from './relatorios/relatorios.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AtendimentosModule } from './atendimentos/atendimentos.module';
     AuthModule,
     ListaEsperaModule,
     AtendimentosModule,
+    RelatoriosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
