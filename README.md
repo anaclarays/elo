@@ -8,7 +8,7 @@ STATUS - Em desenvolvimento.
 
 Antes de executar o projeto, é necessário ter instalado:
 
-- [Node.js](https://nodejs.org/)
+- [Node.js](https://nodejs.org/) 24 ou superior (confira com `node -v`)
 - npm (geralmente instalado junto com o Node.js)
 - Git
 
@@ -46,9 +46,17 @@ necessário instalar ou rodar PostgreSQL localmente.
 
 ### Siga o passo a passo 
 
+**Importante:** todos os comandos abaixo devem ser rodados dentro da
+pasta `backend/`, nunca na raiz do repositório.
+
 - Acesse o backend: `cd backend`
-- Instale as dependências: `npm install`
+- Instale as dependências: `npm ci`
 - Para executar o backend em ambiente de desenvolvimento: `npm run start:dev`
+
+O `npm ci` instala exatamente as versões registradas no
+`package-lock.json`, para que todo mundo rode o projeto com as mesmas
+dependências. Rode de novo sempre que fizer `git pull` e o
+`package-lock.json` tiver mudado.
 
 O backend estará disponível em: http://localhost:3000
 
@@ -60,8 +68,28 @@ Se aparecer esta linha no terminal, a conexão está funcionando:
 Se aparecer um erro em vez disso, confira se o `.env` foi preenchido
 corretamente e se você está rodando os comandos dentro de `backend/`.
 
-**Importante:** todos os comandos abaixo devem ser rodados dentro da
-pasta `backend/`, nunca na raiz do repositório.
+### Testes
+
+Rode os testes com:
+
+```bash
+npm test
+```
+
+Use sempre `npm test`, e não `npx jest`: o script do projeto passa a
+flag `--experimental-vm-modules` para o Node, e sem ela as suítes
+falham antes de rodar.
+
+### Adicionando ou atualizando dependências
+
+O `npm ci` só instala o que já está no `package-lock.json`. Para
+adicionar ou atualizar uma dependência, use o `npm install`:
+
+```bash
+npm install <pacote>
+```
+
+Depois, commite o `package.json` e o `package-lock.json` juntos.
 
 ## Frontend
 
