@@ -14,10 +14,16 @@ import { UpdateProfissionalDto } from '../dto/update-profissional.dto';
 export class ProfissionaisService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(dto: CreateProfissionalDto) {
+  async create(
+    dto: Omit<CreateProfissionalDto, 'telefone' | 'cargo'> &
+      Partial<Pick<CreateProfissionalDto, 'telefone' | 'cargo'>>,
+    consentimentoLgpd = false,
+  ) {
+    const email = dto.email.trim().toLowerCase();
+    const cpf = dto.cpf.replace(/\D/g, '');
     const existente = await this.pool.query(
-      `SELECT id FROM profissionais WHERE cpf = $1 OR email = $2`,
-      [dto.cpf, dto.email],
+      `SELECT id FROM profissionais WHERE cpf = $1 OR LOWER(email) = $2`,
+      [cpf, email],
     );
     if (existente.rows.length > 0) {
       throw new ConflictException('Já existe um profissional com este CPF ou e-mail');
@@ -28,18 +34,20 @@ export class ProfissionaisService {
     const result = await this.pool.query(
       `INSERT INTO profissionais
         (nome_completo, cpf, telefone, email, area_atuacao, cargo, senha_hash,
-         capacidade_semanal, periodos, horario_inicio, horario_fim, status, telefone_atendimento)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         capacidade_semanal, periodos, horario_inicio, horario_fim, status, telefone_atendimento,
+         consentimento_lgpd_em)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, CASE WHEN $14 THEN NOW() END)
+       ON CONFLICT DO NOTHING
        RETURNING id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
                  capacidade_semanal, periodos, horario_inicio, horario_fim, status,
                  telefone_atendimento, ativo, created_at`,
       [
         dto.nomeCompleto,
-        dto.cpf,
-        dto.telefone,
-        dto.email,
+        cpf,
+        dto.telefone ?? null,
+        email,
         dto.areaAtuacao,
-        dto.cargo,
+        dto.cargo ?? null,
         senhaHash,
         dto.capacidadeSemanal ?? null,
         dto.periodos ?? null,
@@ -47,10 +55,14 @@ export class ProfissionaisService {
         dto.horarioFim ?? null,
         dto.status ?? null,
         dto.telefoneAtendimento ?? null,
+        consentimentoLgpd,
       ],
     );
 
-    return result.rows[0]; 
+    if (!result.rows[0]) {
+      throw new ConflictException('Já existe um profissional com este CPF ou e-mail');
+    }
+    return result.rows[0];
   }
 
   async findAll(filtros?: { cpf?: string; nome?: string }) {
@@ -113,16 +125,15 @@ export class ProfissionaisService {
         cpf = COALESCE($2, cpf),
         telefone = COALESCE($3, telefone),
         email = COALESCE($4, email),
-        area_atuacao = COALESCE($5, area_atuacao),
-        cargo = COALESCE($6, cargo),
-        capacidade_semanal = COALESCE($7, capacidade_semanal),
-        periodos = COALESCE($8, periodos),
-        horario_inicio = COALESCE($9, horario_inicio),
-        horario_fim = COALESCE($10, horario_fim),
-        status = COALESCE($11, status),
-        telefone_atendimento = COALESCE($12, telefone_atendimento),
+        cargo = COALESCE($5, cargo),
+        capacidade_semanal = COALESCE($6, capacidade_semanal),
+        periodos = COALESCE($7, periodos),
+        horario_inicio = COALESCE($8, horario_inicio),
+        horario_fim = COALESCE($9, horario_fim),
+        status = COALESCE($10, status),
+        telefone_atendimento = COALESCE($11, telefone_atendimento),
         updated_at = now()
-       WHERE id = $13
+       WHERE id = $12
        RETURNING id, nome_completo, cpf, telefone, email, area_atuacao, cargo,
                  capacidade_semanal, periodos, horario_inicio, horario_fim, status,
                  telefone_atendimento, ativo, updated_at`,
@@ -131,7 +142,6 @@ export class ProfissionaisService {
         dto.cpf ?? null,
         dto.telefone ?? null,
         dto.email ?? null,
-        dto.areaAtuacao ?? null,
         dto.cargo ?? null,
         dto.capacidadeSemanal ?? null,
         dto.periodos ?? null,
