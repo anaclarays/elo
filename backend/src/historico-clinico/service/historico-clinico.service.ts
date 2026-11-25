@@ -61,11 +61,14 @@ export class HistoricoClinicoService {
     };
   }
 
-  // RN37: detalhes de um registro, com o profissional responsável e o paciente
+  // RN37: detalhes de um registro, com o profissional, o paciente e, se houver, o atendimento vinculado
   async buscarRegistro(id: string) {
     const resultado = await this.pool.query(
       `SELECT r.id, r.tipo, r.data_realizacao AS "dataRealizacao", r.titulo, r.descricao,
               r.avaliacoes, r.procedimentos, r.atendimento_id AS "atendimentoId",
+              CASE WHEN a.id IS NOT NULL THEN jsonb_build_object(
+                'id', a.id, 'tipo', a.tipo, 'dataInicio', a.data_inicio, 'status', a.status
+              ) END AS atendimento,
               pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome",
               pr.area_atuacao AS "profissionalArea",
               CASE WHEN r.paciente_tea_id IS NOT NULL THEN 'pacientes-tea' ELSE 'pacientes' END AS "origemPaciente",
@@ -73,6 +76,7 @@ export class HistoricoClinicoService {
               COALESCE(pt.nome_completo, p.nome_beneficiario) AS "pacienteNome"
        FROM registros_clinicos r
        JOIN profissionais pr ON pr.id = r.profissional_id
+       LEFT JOIN atendimentos a ON a.id = r.atendimento_id
        LEFT JOIN pacientes p ON p.id = r.paciente_id
        LEFT JOIN pacientes_tea pt ON pt.id = r.paciente_tea_id
        WHERE r.id = $1 AND COALESCE(pt.ativo, p.ativo) = true`,
@@ -101,35 +105,56 @@ export class HistoricoClinicoService {
     return resultado.rows[0];
   }
 
+  // RN35: junta os registros clínicos e os atendimentos da agenda que já aconteceram.
+  // Depois aplica período (RN38) e tipo (RN39) sobre tudo e ordena do mais recente ao mais antigo.
   private async buscarRegistros(
     colunaPaciente: ColunaPaciente,
     pacienteId: number | string,
     filtros: FiltrosHistoricoDto,
   ) {
-    const condicoes: string[] = [`r.${colunaPaciente} = $1`];
+    const condicoes: string[] = [];
     const valores: (number | string)[] = [pacienteId];
 
     if (filtros.dataInicio) {
       valores.push(filtros.dataInicio);
-      condicoes.push(`r.data_realizacao >= $${valores.length}`);
+      condicoes.push(`h."dataRealizacao" >= $${valores.length}`);
     }
     if (filtros.dataFim) {
       valores.push(filtros.dataFim);
-      condicoes.push(`r.data_realizacao <= $${valores.length}`);
+      condicoes.push(`h."dataRealizacao" <= $${valores.length}`);
     }
     if (filtros.tipo) {
       valores.push(filtros.tipo);
-      condicoes.push(`r.tipo = $${valores.length}`);
+      condicoes.push(`h.tipo = $${valores.length}`);
     }
+    const filtro =
+      condicoes.length > 0 ? `WHERE ${condicoes.join(' AND ')}` : '';
 
-    // Na lista, só o resumo. Os detalhes vêm em buscarRegistro
+    // Na lista, só o resumo (minimização de dados / LGPD). Os detalhes vêm em buscarRegistro.
+    // "origem" diz onde abrir os detalhes: registro (histórico) ou atendimento (módulo da agenda).
     const resultado = await this.pool.query(
-      `SELECT r.id, r.tipo, r.data_realizacao AS "dataRealizacao", r.titulo,
-              pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome"
-       FROM registros_clinicos r
-       JOIN profissionais pr ON pr.id = r.profissional_id
-       WHERE ${condicoes.join(' AND ')}
-       ORDER BY r.data_realizacao DESC, r.created_at DESC`,
+      `SELECT h.id, h.origem, h.tipo, h."dataRealizacao", h.titulo, h.status,
+              h."profissionalId", h."profissionalNome"
+       FROM (
+         SELECT r.id, 'registro' AS origem, r.tipo::text AS tipo,
+                r.data_realizacao AS "dataRealizacao", r.titulo, NULL::text AS status,
+                pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome",
+                r.created_at AS ordem
+         FROM registros_clinicos r
+         JOIN profissionais pr ON pr.id = r.profissional_id
+         WHERE r.${colunaPaciente} = $1
+         UNION ALL
+         SELECT a.id, 'atendimento' AS origem, 'atendimento' AS tipo,
+                (a.data_inicio AT TIME ZONE 'America/Recife')::date AS "dataRealizacao",
+                'Atendimento de ' || a.tipo::text AS titulo, a.status::text AS status,
+                pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome",
+                a.data_inicio AS ordem
+         FROM atendimentos a
+         JOIN profissionais pr ON pr.id = a.profissional_id
+         WHERE a.${colunaPaciente} = $1 AND a.data_inicio < now()
+       ) h
+       ${filtro}
+       ORDER BY h."dataRealizacao" DESC, h.ordem DESC`,
       valores,
     );
     return resultado.rows;

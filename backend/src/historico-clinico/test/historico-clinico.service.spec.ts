@@ -96,7 +96,7 @@ describe('HistoricoClinicoService', () => {
 
       await service.listarPorPacienteTea(pacienteTea.id, {});
 
-      expect(sqlRegistros()).toContain('ORDER BY r.data_realizacao DESC');
+      expect(sqlRegistros()).toContain('ORDER BY h."dataRealizacao" DESC');
     });
 
     it('lança NotFoundException quando a consulta não encontra o paciente (inexistente ou inativo)', async () => {
@@ -131,8 +131,8 @@ describe('HistoricoClinicoService', () => {
         dataFim: '2026-09-30',
       });
 
-      expect(sqlRegistros()).toContain('r.data_realizacao >= $2');
-      expect(sqlRegistros()).toContain('r.data_realizacao <= $3');
+      expect(sqlRegistros()).toContain('h."dataRealizacao" >= $2');
+      expect(sqlRegistros()).toContain('h."dataRealizacao" <= $3');
       expect(valoresRegistros()).toEqual([
         pacienteTea.id,
         '2026-09-01',
@@ -147,8 +147,8 @@ describe('HistoricoClinicoService', () => {
         dataInicio: '2026-10-01',
       });
 
-      expect(sqlRegistros()).toContain('r.data_realizacao >= $2');
-      expect(sqlRegistros()).not.toContain('r.data_realizacao <=');
+      expect(sqlRegistros()).toContain('h."dataRealizacao" >= $2');
+      expect(sqlRegistros()).not.toContain('h."dataRealizacao" <=');
       expect(valoresRegistros()).toEqual([pacienteTea.id, '2026-10-01']);
     });
 
@@ -159,8 +159,8 @@ describe('HistoricoClinicoService', () => {
         dataFim: '2026-08-31',
       });
 
-      expect(sqlRegistros()).toContain('r.data_realizacao <= $2');
-      expect(sqlRegistros()).not.toContain('r.data_realizacao >=');
+      expect(sqlRegistros()).toContain('h."dataRealizacao" <= $2');
+      expect(sqlRegistros()).not.toContain('h."dataRealizacao" >=');
       expect(valoresRegistros()).toEqual([pacienteTea.id, '2026-08-31']);
     });
 
@@ -171,7 +171,7 @@ describe('HistoricoClinicoService', () => {
         tipo: TipoRegistroClinico.AVALIACAO,
       });
 
-      expect(sqlRegistros()).toContain('r.tipo = $2');
+      expect(sqlRegistros()).toContain('h.tipo = $2');
       expect(valoresRegistros()).toEqual([pacienteTea.id, 'avaliacao']);
     });
 
@@ -184,7 +184,7 @@ describe('HistoricoClinicoService', () => {
         tipo: TipoRegistroClinico.ATENDIMENTO,
       });
 
-      expect(sqlRegistros()).toContain('r.tipo = $4');
+      expect(sqlRegistros()).toContain('h.tipo = $4');
       expect(valoresRegistros()).toEqual([
         pacienteTea.id,
         '2026-08-01',
@@ -265,12 +265,135 @@ describe('HistoricoClinicoService', () => {
         tipo: TipoRegistroClinico.EVOLUCAO,
       });
 
-      expect(sqlRegistros()).toContain('r.tipo = $2');
+      expect(sqlRegistros()).toContain('h.tipo = $2');
       expect(valoresRegistros()).toEqual([paciente.id, 'evolucao']);
     });
   });
 
-  // ---------- detalhe de um registro ----------
+  // atendimentos da agenda no histórico
+  describe('atendimentos da agenda no histórico', () => {
+    it('une os registros clínicos aos atendimentos do mesmo paciente de TEA', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).toContain('FROM registros_clinicos r');
+      expect(sqlRegistros()).toContain('UNION ALL');
+      expect(sqlRegistros()).toContain('FROM atendimentos a');
+      expect(sqlRegistros()).toContain('r.paciente_tea_id = $1');
+      expect(sqlRegistros()).toContain('a.paciente_tea_id = $1');
+      expect(valoresRegistros()).toEqual([pacienteTea.id]);
+    });
+
+    it('une os registros clínicos aos atendimentos do mesmo paciente do cadastro de aprendizagem', async () => {
+      simular(paciente);
+
+      await service.listarPorPaciente(paciente.id, {});
+
+      expect(sqlRegistros()).toContain('r.paciente_id = $1');
+      expect(sqlRegistros()).toContain('a.paciente_id = $1');
+      expect(sqlRegistros()).not.toContain('paciente_tea_id');
+      expect(valoresRegistros()).toEqual([paciente.id]);
+    });
+
+    it('inclui somente atendimentos que já aconteceram', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).toContain('a.data_inicio < now()');
+    });
+
+    it('indica a origem de cada item e o status dos atendimentos (inclusive cancelados)', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).toContain("'registro' AS origem");
+      expect(sqlRegistros()).toContain("'atendimento' AS origem");
+      expect(sqlRegistros()).toContain('a.status::text AS status');
+      expect(sqlRegistros()).toContain('NULL::text AS status');
+    });
+
+    it('aplica o filtro de tipo sobre a lista já unida (atendimentos da agenda contam como "atendimento")', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {
+        tipo: TipoRegistroClinico.ATENDIMENTO,
+      });
+
+      expect(sqlRegistros()).toContain(') h');
+      expect(sqlRegistros()).toContain('WHERE h.tipo = $2');
+      expect(valoresRegistros()).toEqual([pacienteTea.id, 'atendimento']);
+    });
+
+    it('aplica o período sobre a lista já unida', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {
+        dataInicio: '2026-09-01',
+        dataFim: '2026-09-30',
+      });
+
+      expect(sqlRegistros()).toContain(
+        'WHERE h."dataRealizacao" >= $2 AND h."dataRealizacao" <= $3',
+      );
+    });
+
+    it('ordena a lista unida do mais recente para o mais antigo', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).toContain(
+        'ORDER BY h."dataRealizacao" DESC, h.ordem DESC',
+      );
+    });
+
+    it('sem filtros, não aplica nenhum WHERE sobre a lista unida', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).not.toContain('WHERE h.');
+    });
+  });
+
+  // ---------- RN37: informações do atendimento no detalhe ----------
+  describe('detalhe com informações do atendimento (RN37)', () => {
+    it('traz tipo, data e status do atendimento quando o registro está vinculado a um', async () => {
+      const detalheComAtendimento = {
+        id: 'r1',
+        tipo: 'avaliacao',
+        dataRealizacao: '2026-09-02',
+        titulo: 'Avaliação',
+        descricao: 'Descrição',
+        avaliacoes: 'Avaliação X',
+        procedimentos: null,
+        atendimentoId: 'a1',
+        atendimento: {
+          id: 'a1',
+          tipo: 'psicologia',
+          dataInicio: '2026-09-02T12:00:00+00:00',
+          status: 'agendado',
+        },
+        profissionalId: 'p1',
+        profissionalNome: 'Profissional Teste',
+      };
+      mockPool.query.mockResolvedValueOnce({ rows: [detalheComAtendimento] });
+
+      const resultado = await service.buscarRegistro('r1');
+
+      expect(resultado.atendimento).toEqual(detalheComAtendimento.atendimento);
+      const sql = String(mockPool.query.mock.calls[0][0]);
+      expect(sql).toContain(
+        'LEFT JOIN atendimentos a ON a.id = r.atendimento_id',
+      );
+      expect(sql).toContain('jsonb_build_object');
+    });
+  });
+
+  // ---------- detalhes de um registro ----------
   describe('buscarRegistro', () => {
     const detalhe = {
       id: 'r1',
