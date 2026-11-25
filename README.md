@@ -65,4 +65,16 @@ pasta `backend/`, nunca na raiz do repositório.
 
 ## Frontend
 
-Ainda não configurado
+Com o backend em execução na porta 3000, abra outro terminal na raiz do repositório:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Acesse [o módulo web local](http://localhost:5173). O servidor de desenvolvimento encaminha as chamadas `/api` ao backend. Para compilar o frontend, execute `npm run build` dentro de `frontend/`.
+
+No `.env` do backend, configure `JWT_SECRET` com pelo menos 32 caracteres. Para enviar links de recuperação, preencha as variáveis `SMTP_*` e aponte `PASSWORD_RESET_URL` para `http://localhost:5173/redefinir-senha` no ambiente local.
+
+Quando a API for hospedada separadamente, defina `VITE_API_URL` para a URL da API antes de compilar e `WEB_ORIGIN` para a origem do frontend no backend. Configure a hospedagem do frontend para servir `index.html` nas rotas da aplicação e use o endereço HTTPS do frontend em `PASSWORD_RESET_URL`.

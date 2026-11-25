@@ -16,8 +16,17 @@ import { PG_POOL } from '../../database/database.constants';
 import { LoginDto } from '../dto/login.dto';
 import { RedefinirSenhaDto } from '../dto/redefinir-senha.dto';
 import { SolicitarRecuperacaoDto } from '../dto/solicitar-recuperacao.dto';
+import { AreaAtuacao } from '../../profissionais/dto/create-profissional.dto';
 
 export const MAIL_TRANSPORT = 'MAIL_TRANSPORT';
+
+interface PerfilAutenticado {
+  id: string;
+  nome_completo: string;
+  email: string;
+  cargo: string | null;
+  area_atuacao: AreaAtuacao;
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
@@ -51,7 +60,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const result = await this.pool.query(
-      `SELECT id, nome_completo, email, cargo, senha_hash
+      `SELECT id, nome_completo, email, cargo, area_atuacao, senha_hash
        FROM profissionais WHERE LOWER(email) = LOWER($1) AND ativo = true LIMIT 1`,
       [dto.email.trim()],
     );
@@ -65,11 +74,16 @@ export class AuthService {
     if (!profissional || !senhaValida) {
       throw new UnauthorizedException('E-mail ou senha inválidos');
     }
+    return this.criarSessao(profissional);
+  }
+
+  async criarSessao(profissional: PerfilAutenticado) {
     const accessToken = await this.jwt.signAsync(
       {
         sub: profissional.id,
         email: profissional.email,
         cargo: profissional.cargo,
+        areaAtuacao: profissional.area_atuacao,
       },
       {
         expiresIn: (this.config.get<string>('JWT_EXPIRES_IN') ??
@@ -85,6 +99,7 @@ export class AuthService {
         nomeCompleto: profissional.nome_completo,
         email: profissional.email,
         cargo: profissional.cargo,
+        areaAtuacao: profissional.area_atuacao,
       },
     };
   }
@@ -115,7 +130,7 @@ export class AuthService {
     if (this.config.get<string>('LOG_RESET_TOKEN') === 'true') {
       const urlBaseDev =
         this.config.get<string>('PASSWORD_RESET_URL') ??
-        'http://localhost:3000/recuperar-senha';
+        'http://localhost:5173/redefinir-senha';
       this.logger.debug(
         `[LOCAL ONLY] Link de recuperação para ${profissional.email}: ${urlBaseDev}?token=${token}`,
       );
@@ -179,6 +194,9 @@ export class AuthService {
     const { token } = dto;
     if (!token || token.length !== 64 || !/^[a-f0-9]+$/i.test(token)) {
       throw new BadRequestException('Token inválido ou expirado');
+    }
+    if (Buffer.byteLength(dto.senha) > 72) {
+      throw new BadRequestException('Informe uma senha de até 72 bytes');
     }
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const senhaHash = await bcrypt.hash(dto.senha, 12);

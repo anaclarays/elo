@@ -37,6 +37,7 @@ describe('AuthService', () => {
           email: 'a@b.com',
           nome_completo: 'A',
           cargo: 'B',
+          area_atuacao: 'voluntariado_saude',
           senha_hash: hash,
         },
       ],
@@ -50,6 +51,7 @@ describe('AuthService', () => {
       nomeCompleto: 'A',
       email: 'a@b.com',
       cargo: 'B',
+      areaAtuacao: 'voluntariado_saude',
     });
     expect(result.accessToken).toBe('jwt-token');
   });

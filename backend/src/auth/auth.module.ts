@@ -54,6 +54,6 @@ import { AuthService, MAIL_TRANSPORT } from './service/auth.service';
       },
     },
   ],
-  exports: [JwtAuthGuard, JwtModule],
+  exports: [AuthService, JwtAuthGuard, JwtModule, ThrottlerModule],
 })
 export class AuthModule {}
