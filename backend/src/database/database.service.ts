@@ -45,6 +45,35 @@ export class DatabaseService implements OnModuleInit {
     `);
 
     await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS profissionais (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        nome_completo TEXT NOT NULL,
+        cpf TEXT NOT NULL UNIQUE,
+        telefone TEXT,
+        email TEXT NOT NULL UNIQUE,
+        area_atuacao TEXT NOT NULL,
+        cargo TEXT,
+        senha_hash TEXT NOT NULL,
+        capacidade_semanal INTEGER,
+        periodos TEXT[],
+        horario_inicio TIME,
+        horario_fim TIME,
+        status TEXT,
+        telefone_atendimento TEXT,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await this.pool.query(`
+      ALTER TABLE profissionais
+        ALTER COLUMN telefone DROP NOT NULL,
+        ALTER COLUMN cargo DROP NOT NULL,
+        ADD COLUMN IF NOT EXISTS consentimento_lgpd_em TIMESTAMPTZ
+    `);
+
+    await this.pool.query(`
       CREATE TABLE IF NOT EXISTS recuperacao_senha_tokens (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         profissional_id UUID NOT NULL REFERENCES profissionais(id) ON DELETE CASCADE,
