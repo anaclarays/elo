@@ -13,6 +13,11 @@ type ColunaPaciente = 'paciente_id' | 'paciente_tea_id';
 // Maior valor de uma coluna INTEGER no Postgres
 const MAIOR_ID_INTEIRO = 2147483647;
 
+// Status do atendimento no histórico: um atendimento agendado cujo horário já passou foi "realizado".
+// Na agenda o status continua "agendado"; a troca vale só para a exibição do histórico
+const STATUS_ATENDIMENTO = `CASE WHEN a.status = 'agendado' AND a.data_inicio < now()
+  THEN 'realizado' ELSE a.status::text END`;
+
 // Dados de identificação do paciente (só cadastros ativos)
 const SQL_PACIENTE = `SELECT id, numero_cadastro AS "numeroCadastro", nome_beneficiario AS nome
   FROM pacientes WHERE id = $1 AND ativo = true`;
@@ -67,7 +72,7 @@ export class HistoricoClinicoService {
       `SELECT r.id, r.tipo, r.data_realizacao AS "dataRealizacao", r.titulo, r.descricao,
               r.avaliacoes, r.procedimentos, r.atendimento_id AS "atendimentoId",
               CASE WHEN a.id IS NOT NULL THEN jsonb_build_object(
-                'id', a.id, 'tipo', a.tipo, 'dataInicio', a.data_inicio, 'status', a.status
+                'id', a.id, 'tipo', a.tipo, 'dataInicio', a.data_inicio, 'status', ${STATUS_ATENDIMENTO}
               ) END AS atendimento,
               pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome",
               pr.area_atuacao AS "profissionalArea",
@@ -146,7 +151,7 @@ export class HistoricoClinicoService {
          UNION ALL
          SELECT a.id, 'atendimento' AS origem, 'atendimento' AS tipo,
                 (a.data_inicio AT TIME ZONE 'America/Recife')::date AS "dataRealizacao",
-                'Atendimento de ' || a.tipo::text AS titulo, a.status::text AS status,
+                'Atendimento de ' || a.tipo::text AS titulo, ${STATUS_ATENDIMENTO} AS status,
                 pr.id AS "profissionalId", pr.nome_completo AS "profissionalNome",
                 a.data_inicio AS ordem
          FROM atendimentos a

@@ -311,8 +311,19 @@ describe('HistoricoClinicoService', () => {
 
       expect(sqlRegistros()).toContain("'registro' AS origem");
       expect(sqlRegistros()).toContain("'atendimento' AS origem");
-      expect(sqlRegistros()).toContain('a.status::text AS status');
+      expect(sqlRegistros()).toContain('ELSE a.status::text END AS status');
       expect(sqlRegistros()).toContain('NULL::text AS status');
+    });
+
+    it('mostra como "realizado" o atendimento agendado cujo horário já passou', async () => {
+      simular(pacienteTea);
+
+      await service.listarPorPacienteTea(pacienteTea.id, {});
+
+      expect(sqlRegistros()).toContain(
+        "WHEN a.status = 'agendado' AND a.data_inicio < now()",
+      );
+      expect(sqlRegistros()).toContain("THEN 'realizado'");
     });
 
     it('aplica o filtro de tipo sobre a lista já unida (atendimentos da agenda contam como "atendimento")', async () => {
@@ -375,7 +386,7 @@ describe('HistoricoClinicoService', () => {
           id: 'a1',
           tipo: 'psicologia',
           dataInicio: '2026-09-02T12:00:00+00:00',
-          status: 'agendado',
+          status: 'realizado',
         },
         profissionalId: 'p1',
         profissionalNome: 'Profissional Teste',
@@ -390,6 +401,7 @@ describe('HistoricoClinicoService', () => {
         'LEFT JOIN atendimentos a ON a.id = r.atendimento_id',
       );
       expect(sql).toContain('jsonb_build_object');
+      expect(sql).toContain("THEN 'realizado'");
     });
   });
 
