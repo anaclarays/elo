@@ -1,7 +1,8 @@
 import {
   CalendarCheck, CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, Users, UserRoundCog, X,
+  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, UserRound, Users, UserRoundCog, X,
 } from 'lucide-react';
+import { ProfileModal } from './ProfileModal';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError, areas, expiration, type Session } from './api';
@@ -48,10 +49,17 @@ function NavigationGroup({ title, items }: { title: string; items: typeof naviga
   </div>;
 }
 
-function Workspace({ session, signOut }: { session: Session; signOut: () => void }) {
+function Workspace({ session, signOut, onExpired, onUpdateProfile, onNotify }: {
+  session: Session;
+  signOut: () => void;
+  onExpired: () => void;
+  onUpdateProfile: (profissional: Session['profissional']) => void;
+  onNotify: (notification: Notification) => void;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('elo.web.sidebar-collapsed') === 'true');
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [teamQuery, setTeamQuery] = useState('');
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -152,12 +160,26 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
           </button>
           {profileOpen && <div className="profile-options" id="profile-options">
             <span className="profile-email">{person.email}</span>
-            <button type="button" onClick={() => { signOut(); navigate('/login', { replace: true }); }}><LogOut size={17} aria-hidden="true" /> Sair</button>
+            <button type="button" onClick={() => { setProfileOpen(false); setProfileModalOpen(true); }}>
+              <UserRound size={17} aria-hidden="true" /> Meu perfil
+            </button>
+            <button type="button" className="profile-signout" onClick={() => { signOut(); navigate('/login', { replace: true }); }}>
+              <LogOut size={17} aria-hidden="true" /> Sair
+            </button>
           </div>}
         </div>
       </header>
       <main className="main-content" ref={content} id="conteudo" tabIndex={-1}><Outlet context={teamQuery} /></main>
     </div>
+    {profileModalOpen && (
+      <ProfileModal
+        session={session}
+        onClose={() => setProfileModalOpen(false)}
+        onExpired={onExpired}
+        onUpdated={onUpdateProfile}
+        onNotify={onNotify}
+      />
+    )}
   </div>;
 }
 
@@ -529,6 +551,15 @@ export default function App() {
     setSession(newSession);
   }
 
+  function updateProfile(profissional: Session['profissional']) {
+    setSession((current) => {
+      if (!current) return null;
+      const next = { ...current, profissional };
+      sessionStorage.setItem(sessionKey, JSON.stringify(next));
+      return next;
+    });
+  }
+
   const signOut = useRef(() => {
     sessionStorage.removeItem(sessionKey);
     setSession(null);
@@ -556,7 +587,7 @@ export default function App() {
       <Route path="/cadastro" element={session ? home : <Register onSession={signIn} />} />
       <Route path="/recuperar-senha" element={<Recovery />} />
       <Route path="/redefinir-senha" element={<ResetPassword />} />
-      <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
+      <Route element={session ? <Workspace session={session} signOut={signOut} onExpired={sessionExpired} onUpdateProfile={updateProfile} onNotify={setNotification} /> : login}>
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
