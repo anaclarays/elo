@@ -1,6 +1,6 @@
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from 'react';
-import { api, ApiError } from './api';
+import { api, ApiError, areas, type Area } from './api';
 import { formatCpf } from './AuthPages';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 import { WorkspaceDialog, type Notification } from './WorkspaceFeedback';
@@ -301,12 +301,98 @@ interface HistoryRecord {
   origem: 'registro' | 'atendimento';
   dataRealizacao: string;
   titulo: string;
+  status: string | null;
   profissionalNome: string;
+}
+
+interface RecordDetail {
+  tipo: string;
+  dataRealizacao: string;
+  titulo: string;
+  descricao: string | null;
+  avaliacoes: string | null;
+  procedimentos: string | null;
+  profissionalNome: string;
+  profissionalArea: string;
+  atendimento: { tipo: string; dataInicio: string; status: string } | null;
+}
+
+interface AppointmentDetail {
+  tipo: string;
+  dataInicio: string;
+  dataFim: string;
+  status: string;
+  motivoCancelamento: string | null;
+}
+
+const recordTypes: Record<string, string> = {
+  atendimento: 'Atendimento', avaliacao: 'Avaliação', procedimento: 'Procedimento', evolucao: 'Evolução',
+};
+const appointmentStatus: Record<string, string> = { agendado: 'Agendado', realizado: 'Realizado', cancelado: 'Cancelado' };
+const clock = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Recife', hour: '2-digit', minute: '2-digit' });
+
+function capitalize(value: string) {
+  return value.charAt(0).toLocaleUpperCase('pt-BR') + value.slice(1);
+}
+
+// Atendimento agendado cujo horário já passou aparece como realizado (mesma regra do backend do histórico)
+function appointmentStatusLabel(status: string, start: string) {
+  const shown = status === 'agendado' && new Date(start).getTime() < Date.now() ? 'realizado' : status;
+  return appointmentStatus[shown] ?? shown;
+}
+
+function DetailItem({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+// RN37: detalhes de um item do prontuário (registro clínico ou atendimento da agenda)
+function HistoryDetail({ token, onExpired, record }: DataAccess & { record: HistoryRecord }) {
+  const [detail, setDetail] = useState<RecordDetail | AppointmentDetail>();
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const path = record.origem === 'registro' ? `/historico-clinico/registros/${record.id}` : `/atendimentos/${record.id}`;
+    void api<RecordDetail | AppointmentDetail>(path, { token }).then((data) => {
+      if (active) setDetail(data);
+    }).catch((failure: unknown) => {
+      if (!active) return;
+      if (failure instanceof ApiError && failure.status === 401) onExpired();
+      else setError(failure instanceof Error ? failure.message : 'Não foi possível carregar os detalhes.');
+    });
+    return () => { active = false; };
+  }, [token, onExpired, record.id, record.origem]);
+
+  if (error) return <p className="notice error" role="alert">{error}</p>;
+  if (!detail) return <p role="status">Carregando detalhes…</p>;
+
+  if ('dataFim' in detail) {
+    return <dl className="history-detail">
+      <DetailItem label="Tipo" value={capitalize(detail.tipo)} />
+      <DetailItem label="Data" value={`${displayDate(detail.dataInicio)}, ${clock.format(new Date(detail.dataInicio))}–${clock.format(new Date(detail.dataFim))}`} />
+      <DetailItem label="Profissional" value={record.profissionalNome} />
+      <DetailItem label="Status" value={appointmentStatusLabel(detail.status, detail.dataInicio)} />
+      <DetailItem label="Motivo do cancelamento" value={detail.motivoCancelamento} />
+    </dl>;
+  }
+
+  const area = areas[detail.profissionalArea as Area] ?? capitalize(detail.profissionalArea);
+  return <dl className="history-detail">
+    <DetailItem label="Tipo" value={recordTypes[detail.tipo] ?? detail.tipo} />
+    <DetailItem label="Data" value={displayDate(detail.dataRealizacao)} />
+    <DetailItem label="Profissional" value={`${detail.profissionalNome} · ${area}`} />
+    <DetailItem label="Descrição" value={detail.descricao} />
+    <DetailItem label="Avaliações" value={detail.avaliacoes} />
+    <DetailItem label="Procedimentos" value={detail.procedimentos} />
+    {detail.atendimento && <DetailItem label="Atendimento vinculado"
+      value={`Atendimento de ${detail.atendimento.tipo} em ${displayDate(detail.atendimento.dataInicio)} (${appointmentStatusLabel(detail.atendimento.status, detail.atendimento.dataInicio)})`} />}
+  </dl>;
 }
 
 function BeneficiaryHistory({ token, onExpired, person, onClose }: DataAccess & { person: Beneficiario; onClose: () => void }) {
   const [records, setRecords] = useState<HistoryRecord[]>();
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState<HistoryRecord>();
   useEffect(() => {
     let active = true;
     void api<{ registros: HistoryRecord[] }>(`/historico-clinico/pacientes/${person.id}`, { token }).then(({ registros }) => {
@@ -321,16 +407,22 @@ function BeneficiaryHistory({ token, onExpired, person, onClose }: DataAccess & 
 
   return <WorkspaceDialog title="Prontuário" onClose={onClose}>
     <div className="workspace-dialog-content beneficiary-history">
-      <h3>{person.nomeBeneficiario}</h3>
-      {error ? <p className="notice error" role="alert">{error}</p>
+      <h3>{selected ? selected.titulo : person.nomeBeneficiario}</h3>
+      {selected ? <HistoryDetail token={token} onExpired={onExpired} record={selected} />
+        : error ? <p className="notice error" role="alert">{error}</p>
         : !records ? <p role="status">Carregando prontuário…</p>
         : !records.length ? <p>Nenhum registro no histórico clínico.</p>
         : <ul>{records.map((record) => <li key={`${record.origem}-${record.id}`}>
-          <strong>{record.titulo}</strong>
-          <span>{displayDate(record.dataRealizacao)} · {record.profissionalNome}</span>
+          <button type="button" className="history-item" onClick={() => setSelected(record)}
+            aria-label={`Ver detalhes: ${record.titulo} em ${displayDate(record.dataRealizacao)}`}>
+            <strong>{record.titulo}</strong>
+            <span>{displayDate(record.dataRealizacao)} · {record.profissionalNome}
+              {record.status && ` · ${appointmentStatus[record.status] ?? record.status}`}</span>
+          </button>
         </li>)}</ul>}
     </div>
     <footer className="form-actions workspace-dialog-footer">
+      {selected && <button type="button" className="back-button" onClick={() => setSelected(undefined)}>Voltar</button>}
       <button type="button" className="back-button" onClick={onClose}>Fechar</button>
     </footer>
   </WorkspaceDialog>;

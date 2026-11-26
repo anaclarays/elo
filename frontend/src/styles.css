@@ -327,8 +327,14 @@ tr:last-child td { border-bottom: 0; }
 .beneficiary-history { display: grid; gap: .7rem; color: var(--muted); }
 .beneficiary-history h3 { margin: 0; color: var(--text); }
 .beneficiary-history ul { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
-.beneficiary-history li { display: grid; gap: .15rem; padding: .7rem .85rem; border: 1px solid var(--border); border-radius: .65rem; }
+.history-item { display: grid; gap: .15rem; width: 100%; padding: .7rem .85rem; border: 1px solid var(--border); border-radius: .65rem;
+  background: var(--white); color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
+.history-item:hover { border-color: var(--blue-soft); background: var(--blue-light); }
+.history-item:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .beneficiary-history strong { color: var(--text); }
+.history-detail { display: grid; gap: .75rem; margin: 0; }
+.history-detail dt { color: var(--muted); font-size: .8rem; font-weight: 600; }
+.history-detail dd { margin: .1rem 0 0; color: var(--text); white-space: pre-wrap; }
 .form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; }
 .sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link:focus { position: fixed; top: .5rem; left: .5rem; z-index: 20; padding: .7rem; background: var(--white); }
