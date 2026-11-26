@@ -23,6 +23,8 @@ interface Suggestion {
   titulo: string;
   motivo: string;
   consequencia: string;
+  // false quando a sugestão muda a agenda de outro profissional e só a coordenação decide
+  podeDecidir: boolean;
 }
 
 interface SuggestionList { geradasEm: string; sugestoes: Suggestion[] }
@@ -40,7 +42,7 @@ interface Decision {
 type View = 'pending' | 'history';
 type Action = { type: 'approve' | 'discard'; suggestion: Suggestion };
 
-export function Sugestoes({ token, onExpired, onNotify }: DataAccess & { onNotify: (notification: Notification) => void }) {
+export function Sugestoes({ token, onExpired, onNotify, admin }: DataAccess & { onNotify: (notification: Notification) => void; admin: boolean }) {
   const [data, setData] = useState<SuggestionList>();
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('pending');
@@ -112,6 +114,7 @@ export function Sugestoes({ token, onExpired, onNotify }: DataAccess & { onNotif
     <p className="suggestions-note">
       As sugestões vêm de regras sobre a capacidade semanal da equipe, a agenda e a lista de espera.
       Elas apoiam a decisão e não substituem a avaliação dos profissionais: nada muda na agenda sem aprovação.
+      {!admin && ' Aqui aparecem as sugestões que mudam a sua agenda.'}
     </p>
 
     <div className="suggestions-tabs" role="group" aria-label="Exibir">
@@ -129,7 +132,8 @@ export function Sugestoes({ token, onExpired, onNotify }: DataAccess & { onNotif
       : !data.sugestoes.length ? <div className="panel suggestions-empty">
         <Check size={22} aria-hidden="true" />
         <div><h2>Nenhuma sugestão no momento</h2>
-          <p>Ninguém está acima da capacidade semanal, e não há vaga livre para a lista de espera nas próximas duas semanas.</p></div>
+          <p>{admin ? 'Ninguém está acima da capacidade semanal, e não há vaga livre para a lista de espera nas próximas duas semanas.'
+            : 'Nenhuma sugestão envolve a sua agenda agora.'}</p></div>
       </div>
       : <ul className="suggestions-list">{data.sugestoes.map((suggestion) => {
         const { label, Icon } = types[suggestion.tipo];
@@ -140,10 +144,10 @@ export function Sugestoes({ token, onExpired, onNotify }: DataAccess & { onNotif
             <div><dt>Por quê</dt><dd>{suggestion.motivo}</dd></div>
             <div><dt>O que acontece ao aprovar</dt><dd>{suggestion.consequencia}</dd></div>
           </dl>
-          <div className="suggestion-actions">
+          {suggestion.podeDecidir ? <div className="suggestion-actions">
             <button type="button" className="back-button" onClick={() => open('discard', suggestion)}><X size={17} aria-hidden="true" /> Descartar</button>
             <button type="button" className="primary-button" onClick={() => open('approve', suggestion)}><Check size={17} aria-hidden="true" /> Aprovar</button>
-          </div>
+          </div> : <p className="suggestion-locked">Muda a agenda de outro profissional: só a coordenação pode decidir.</p>}
         </li>;
       })}</ul>)}
 

@@ -11,6 +11,8 @@ CREATE TABLE decisoes_sugestoes (
   titulo        TEXT NOT NULL,
   decisao       decisao_sugestao_enum NOT NULL,
   motivo        TEXT,
+  -- Profissionais cuja agenda a sugestão alterava (o voluntário vê no histórico só as dele)
+  profissionais UUID[] NOT NULL DEFAULT '{}',
   decidido_por  UUID NOT NULL REFERENCES profissionais(id),
   decidido_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
 

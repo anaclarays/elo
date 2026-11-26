@@ -11,12 +11,22 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { CoordenacaoGuard } from '../../auth/guards/coordenacao.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { AreaAtuacao } from '../../profissionais/dto/create-profissional.dto';
 import { DescartarSugestaoDto } from '../dto/descartar-sugestao.dto';
-import { SugestoesService } from '../service/sugestoes.service';
+import {
+  SugestoesService,
+  UsuarioSugestoes,
+} from '../service/sugestoes.service';
 
-type RequestAutenticado = Request & { user: { sub: string } };
+type RequestAutenticado = Request & {
+  user: { sub: string; areaAtuacao?: string };
+};
+
+const usuario = ({ user }: RequestAutenticado): UsuarioSugestoes => ({
+  id: user.sub,
+  coordenacao: user.areaAtuacao === AreaAtuacao.COORDENACAO_ADMINISTRATIVA,
+});
 
 // O id da sugestão é um hash de 24 caracteres hexadecimais
 export class IdSugestaoPipe implements PipeTransform<string, string> {
@@ -28,20 +38,20 @@ export class IdSugestaoPipe implements PipeTransform<string, string> {
   }
 }
 
-// Sugestões e decisões são só da coordenação
+// Todos veem a aba; o service filtra o que cada perfil pode ver e decidir
 @Controller('sugestoes')
-@UseGuards(JwtAuthGuard, CoordenacaoGuard)
+@UseGuards(JwtAuthGuard)
 export class SugestoesController {
   constructor(private readonly sugestoesService: SugestoesService) {}
 
   @Get()
-  listar() {
-    return this.sugestoesService.listar();
+  listar(@Req() request: RequestAutenticado) {
+    return this.sugestoesService.listar(usuario(request));
   }
 
   @Get('historico')
-  historico() {
-    return this.sugestoesService.historico();
+  historico(@Req() request: RequestAutenticado) {
+    return this.sugestoesService.historico(usuario(request));
   }
 
   @Post(':id/aprovar')
@@ -50,7 +60,7 @@ export class SugestoesController {
     @Param('id', IdSugestaoPipe) id: string,
     @Req() request: RequestAutenticado,
   ) {
-    return this.sugestoesService.aprovar(id, request.user.sub);
+    return this.sugestoesService.aprovar(id, usuario(request));
   }
 
   @Post(':id/descartar')
@@ -60,6 +70,6 @@ export class SugestoesController {
     @Body() dto: DescartarSugestaoDto,
     @Req() request: RequestAutenticado,
   ) {
-    return this.sugestoesService.descartar(id, dto.motivo, request.user.sub);
+    return this.sugestoesService.descartar(id, dto.motivo, usuario(request));
   }
 }

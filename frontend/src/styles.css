@@ -677,3 +677,4 @@ body:has(.workspace-dialog[open]) { overflow: hidden; }
   .suggestion-actions button { flex: 1; }
   .decision-list li { flex-direction: column; gap: .4rem; }
 }
+.suggestion-locked { margin: auto 0 0; padding: .55rem .7rem; border-radius: .6rem; background: #f4f4f4; color: var(--muted); font-size: .85rem; }

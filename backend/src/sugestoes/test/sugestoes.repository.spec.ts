@@ -49,6 +49,7 @@ describe('SugestoesRepository', () => {
       titulo: 'Agendar Família Silva com Bruno',
       decisao: Decisao.APROVADA,
       motivo: null,
+      profissionais: ['prof-1'],
       decididoPor: 'usuario-1',
     };
 
@@ -66,6 +67,7 @@ describe('SugestoesRepository', () => {
         decisao.titulo,
         decisao.decisao,
         null,
+        ['prof-1'],
         'usuario-1',
       ]);
     });
@@ -89,6 +91,15 @@ describe('SugestoesRepository', () => {
     const [sql, valores] = pool.query.mock.calls[0];
     expect(sql).toContain('ORDER BY d.decidido_em DESC');
     expect(sql).toContain('"decididoPorNome"');
+    expect(sql).not.toContain('ANY');
     expect(valores).toEqual([50]);
+  });
+
+  it('filtra o histórico do voluntário pelas decisões que o envolviam', async () => {
+    await repository.listarHistorico('prof-1');
+
+    const [sql, valores] = pool.query.mock.calls[0];
+    expect(sql).toContain('$2 = ANY(d.profissionais)');
+    expect(valores).toEqual([50, 'prof-1']);
   });
 });

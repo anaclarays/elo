@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,12 +12,33 @@ import {
   inicioDaSemana,
   LIMITES,
   Sugestao,
+  TipoSugestao,
 } from '../sugestoes.regras';
 import { Decisao, SugestoesRepository } from '../sugestoes.repository';
 
 const DIA = 24 * 60 * 60 * 1000;
 const MOTIVO_REDUCAO =
-  'Redução de frequência sugerida pelo sistema e aprovada pela coordenação';
+  'Redução de frequência sugerida pelo sistema e aprovada em Sugestões de IA';
+
+export interface UsuarioSugestoes {
+  id: string;
+  coordenacao: boolean;
+}
+
+// A coordenação vê tudo; o voluntário vê as sugestões que mexem na agenda dele
+function podeVer(sugestao: Sugestao, usuario: UsuarioSugestoes) {
+  return usuario.coordenacao || sugestao.profissionais.includes(usuario.id);
+}
+
+// O voluntário decide as dele, mas não cancela atendimentos de outro profissional
+function podeDecidir(sugestao: Sugestao, usuario: UsuarioSugestoes) {
+  if (usuario.coordenacao) return true;
+  if (!sugestao.profissionais.includes(usuario.id)) return false;
+  return (
+    sugestao.tipo !== TipoSugestao.REDUCAO_FREQUENCIA ||
+    sugestao.profissionais.every((id) => id === usuario.id)
+  );
+}
 
 @Injectable()
 export class SugestoesService {
@@ -26,25 +48,33 @@ export class SugestoesService {
     private readonly listaEsperaService: ListaEsperaService,
   ) {}
 
-  async listar() {
+  async listar(usuario: UsuarioSugestoes) {
     const agora = new Date();
+    const sugestoes = await this.calcular(agora);
     return {
       geradasEm: agora.toISOString(),
-      sugestoes: await this.calcular(agora),
+      sugestoes: sugestoes
+        .filter((sugestao) => podeVer(sugestao, usuario))
+        .map((sugestao) => ({
+          ...sugestao,
+          podeDecidir: podeDecidir(sugestao, usuario),
+        })),
     };
   }
 
-  historico() {
-    return this.repository.listarHistorico();
+  historico(usuario: UsuarioSugestoes) {
+    return this.repository.listarHistorico(
+      usuario.coordenacao ? undefined : usuario.id,
+    );
   }
 
-  async aprovar(id: string, usuarioId: string) {
-    const sugestao = await this.buscarDisponivel(id);
+  async aprovar(id: string, usuario: UsuarioSugestoes) {
+    const sugestao = await this.buscarParaDecidir(id, usuario);
     const decisao = await this.registrar(
       sugestao,
       Decisao.APROVADA,
       null,
-      usuarioId,
+      usuario.id,
     );
 
     // Se a ação falhar (ex.: alguém ocupou o horário), a sugestão volta para a lista
@@ -57,9 +87,9 @@ export class SugestoesService {
     }
   }
 
-  async descartar(id: string, motivo: string, usuarioId: string) {
-    const sugestao = await this.buscarDisponivel(id);
-    return this.registrar(sugestao, Decisao.DESCARTADA, motivo, usuarioId);
+  async descartar(id: string, motivo: string, usuario: UsuarioSugestoes) {
+    const sugestao = await this.buscarParaDecidir(id, usuario);
+    return this.registrar(sugestao, Decisao.DESCARTADA, motivo, usuario.id);
   }
 
   // As sugestões não ficam salvas: são recalculadas a partir da situação atual
@@ -96,11 +126,16 @@ export class SugestoesService {
     });
   }
 
-  private async buscarDisponivel(id: string) {
+  private async buscarParaDecidir(id: string, usuario: UsuarioSugestoes) {
     const sugestao = (await this.calcular(new Date())).find((s) => s.id === id);
-    if (!sugestao) {
+    if (!sugestao || !podeVer(sugestao, usuario)) {
       throw new NotFoundException(
         'Esta sugestão não está mais disponível. Atualize a lista.',
+      );
+    }
+    if (!podeDecidir(sugestao, usuario)) {
+      throw new ForbiddenException(
+        'Só a coordenação pode decidir esta sugestão, porque ela muda a agenda de outro profissional.',
       );
     }
     return sugestao;
@@ -118,6 +153,7 @@ export class SugestoesService {
       titulo: sugestao.titulo,
       decisao,
       motivo,
+      profissionais: sugestao.profissionais,
       decididoPor: usuarioId,
     });
     if (!registrada) {

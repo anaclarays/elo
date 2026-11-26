@@ -16,9 +16,8 @@ import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 const overview = [
   { label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
   { label: 'Beneficiários', path: '/beneficiarios', Icon: Users },
+  { label: 'Sugestões de IA', path: '/sugestoes-ia', Icon: Sparkles },
 ];
-// Só a coordenação vê as sugestões, porque aprovar muda a agenda de toda a equipe
-const suggestions = { label: 'Sugestões de IA', path: '/sugestoes-ia', Icon: Sparkles };
 const operations = [
   { label: 'Agenda Inteligente', path: '/agenda-inteligente', Icon: CalendarClock },
   { label: 'Lista de Espera', path: '/lista-de-espera', Icon: ListPlus },
@@ -28,7 +27,7 @@ const management = [
   { label: 'Equipe', path: '/equipe', Icon: UserRoundCog },
   { label: 'Configurações & LGPD', path: '/configuracoes-lgpd', Icon: ShieldCheck },
 ];
-const navigation = [...overview, suggestions, ...operations, ...management];
+const navigation = [...overview, ...operations, ...management];
 const sessionKey = 'elo.web.session';
 
 function readSession(): Session | null {
@@ -129,7 +128,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
           requestAnimationFrame(() => content.current?.focus());
         }
       }}>
-        <NavigationGroup title="Visão Geral" items={admin ? [...overview, suggestions] : overview} />
+        <NavigationGroup title="Visão Geral" items={overview} />
         <NavigationGroup title="Operação" items={operations} />
         {admin && <NavigationGroup title="Gestão" items={management} />}
       </nav>
@@ -164,7 +163,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
   </div>;
 }
 
-function Dashboard({ token, onExpired, admin }: DataAccess & { admin: boolean }) {
+function Dashboard({ token, onExpired }: DataAccess) {
   const { records, error, reload } = useRecords<Beneficiario>('/pacientes', token, onExpired);
   const today = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date());
   return <>
@@ -174,7 +173,7 @@ function Dashboard({ token, onExpired, admin }: DataAccess & { admin: boolean })
         <h2>Painel Operacional</h2>
         <div className="operation-links">
           {operations.map(({ label, path, Icon }) => <Link to={path} key={path}><Icon size={20} aria-hidden="true" /> {label}</Link>)}
-          {admin && <Link to={suggestions.path}><suggestions.Icon size={20} aria-hidden="true" /> {suggestions.label}</Link>}
+          <Link to={overview[2].path}><Sparkles size={20} aria-hidden="true" /> {overview[2].label}</Link>
         </div>
       </section>
       <section className="panel dashboard-summary">
@@ -561,11 +560,11 @@ export default function App() {
       <Route path="/recuperar-senha" element={<Recovery />} />
       <Route path="/redefinir-senha" element={<ResetPassword />} />
       <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
-        <Route path="/dashboard" element={<Dashboard {...dataAccess} admin={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
+        <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
-        <Route path={suggestions.path} element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
-          ? <Sugestoes {...dataAccess} onNotify={setNotification} /> : home} />
+        <Route path={overview[2].path} element={<Sugestoes {...dataAccess} onNotify={setNotification}
+          admin={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'

@@ -128,6 +128,7 @@ describe('gerarSugestoes', () => {
       expect(sugestoes[0]).toMatchObject({
         id: idSugestao(`sobrecarga:${agendaDaAna[2].id}:bruno`),
         tipo: TipoSugestao.SOBRECARGA,
+        profissionais: ['ana', 'bruno'],
         acao: {
           tipo: 'transferir',
           atendimentoId: agendaDaAna[2].id,

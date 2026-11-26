@@ -68,6 +68,8 @@ export interface Sugestao {
   titulo: string;
   motivo: string;
   consequencia: string;
+  // Profissionais cuja agenda muda se a sugestão for aprovada
+  profissionais: string[];
   acao: AcaoSugestao;
 }
 
@@ -312,6 +314,7 @@ function sobrecarga(
           titulo: `Transferir o atendimento de ${atendimento.pacienteNome} para ${destino.nome}`,
           motivo: `${origem.nome} tem ${antes} atendimentos na semana de ${dataCurta.format(semana.inicio)}, acima da capacidade semanal de ${capacidade}.`,
           consequencia: `O atendimento de ${quando(atendimento.dataInicio)} passa para ${destino.nome}, no mesmo horário. ${origem.nome} fica com ${antes - 1} de ${capacidade} e ${destino.nome} passa a ${destinoAntes + 1} de ${destino.capacidadeSemanal} na semana.${aviso}`,
+          profissionais: [origem.id, destino.id],
           acao: {
             tipo: 'transferir',
             atendimentoId: atendimento.id,
@@ -424,6 +427,7 @@ function vagasParaFila(
           titulo: `Agendar ${familia.nome} com ${profissional.nome}`,
           motivo: `${profissional.nome} tem ${plural(capacidade - antes, 'vaga livre', 'vagas livres')} na semana de ${dataCurta.format(semana.inicio)} (${antes} de ${capacidade} ocupadas), e ${familia.nome} está na ${familia.posicao}ª posição da lista de espera, há ${plural(diasNaFila, 'dia', 'dias')}.`,
           consequencia: `${familia.nome} sai da lista de espera com o primeiro atendimento (${tipo}) em ${quando(inicio)}. ${profissional.nome} passa a ${antes + 1} de ${capacidade} atendimentos na semana.`,
+          profissionais: [profissional.id],
           acao: {
             tipo: 'agendar',
             pacienteId: familia.pacienteId,
@@ -474,6 +478,7 @@ function reducaoDeFrequencia(dados: DadosSugestoes): Sugestao[] {
       titulo: `Reduzir a frequência de ${nome}`,
       motivo: `${nome} tem ${atendimentos.length} atendimentos nos próximos ${LIMITES.diasAnalisados} dias, acima do limite de ${LIMITES.atendimentosPorPaciente} (cerca de 1 por semana), enquanto ${plural(dados.fila.length, 'família espera', 'famílias esperam')} na lista de espera.`,
       consequencia: `Cancela ${plural(excedentes.length, 'atendimento', 'atendimentos')} (${excedentes.map((a) => quando(a.dataInicio)).join('; ')}) e libera ${plural(excedentes.length, 'horário', 'horários')} no mês para famílias da fila. Confirme com o profissional responsável antes de aprovar.`,
+      profissionais: [...new Set(excedentes.map((a) => a.profissionalId))],
       acao: { tipo: 'cancelar', atendimentoIds: excedentes.map((a) => a.id) },
     });
   }

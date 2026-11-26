@@ -1,7 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CoordenacaoGuard } from '../../auth/guards/coordenacao.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import {
   IdSugestaoPipe,
@@ -18,7 +17,13 @@ describe('SugestoesController', () => {
     descartar: jest.fn(),
   };
   const id = 'a'.repeat(24);
-  const request = { user: { sub: 'usuario-1' } } as never;
+  const request = {
+    user: { sub: 'usuario-1', areaAtuacao: 'coordenacao_administrativa' },
+  } as never;
+  const voluntaria = {
+    user: { sub: 'usuario-2', areaAtuacao: 'voluntariado_saude' },
+  } as never;
+  const coordenacao = { id: 'usuario-1', coordenacao: true };
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -29,33 +34,40 @@ describe('SugestoesController', () => {
     })
       .overrideGuard(JwtAuthGuard) // nos testes, o login é ignorado
       .useValue({ canActivate: () => true })
-      .overrideGuard(CoordenacaoGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get<SugestoesController>(SugestoesController);
   });
 
-  it('exige login e perfil de coordenação em todas as rotas', () => {
+  it('exige login em todas as rotas, para qualquer perfil', () => {
     expect(Reflect.getMetadata(GUARDS_METADATA, SugestoesController)).toEqual([
       JwtAuthGuard,
-      CoordenacaoGuard,
     ]);
   });
 
   it('lista as sugestões', async () => {
     mockService.listar.mockResolvedValueOnce({ sugestoes: [] });
-    await expect(controller.listar()).resolves.toEqual({ sugestoes: [] });
+    await expect(controller.listar(request)).resolves.toEqual({
+      sugestoes: [],
+    });
+  });
+
+  it('identifica o voluntário pelo perfil do login', async () => {
+    await controller.listar(voluntaria);
+    expect(mockService.listar).toHaveBeenCalledWith({
+      id: 'usuario-2',
+      coordenacao: false,
+    });
   });
 
   it('lista o histórico de decisões', async () => {
     mockService.historico.mockResolvedValueOnce([]);
-    await expect(controller.historico()).resolves.toEqual([]);
+    await expect(controller.historico(request)).resolves.toEqual([]);
   });
 
   it('aprova em nome de quem está logado', async () => {
     await controller.aprovar(id, request);
-    expect(mockService.aprovar).toHaveBeenCalledWith(id, 'usuario-1');
+    expect(mockService.aprovar).toHaveBeenCalledWith(id, coordenacao);
   });
 
   it('descarta com o motivo informado', async () => {
@@ -63,7 +75,7 @@ describe('SugestoesController', () => {
     expect(mockService.descartar).toHaveBeenCalledWith(
       id,
       'Sem disponibilidade',
-      'usuario-1',
+      coordenacao,
     );
   });
 });

@@ -19,6 +19,7 @@ export interface NovaDecisao {
   titulo: string;
   decisao: Decisao;
   motivo: string | null;
+  profissionais: string[];
   decididoPor: string;
 }
 
@@ -32,7 +33,7 @@ export interface DecisaoHistorico extends DecisaoRegistrada {
 }
 
 const PROJECAO_DECISAO = `id, sugestao_id AS "sugestaoId", tipo, titulo, decisao, motivo,
-  decidido_por AS "decididoPor", decidido_em AS "decididoEm"`;
+  profissionais, decidido_por AS "decididoPor", decidido_em AS "decididoEm"`;
 
 @Injectable()
 export class SugestoesRepository {
@@ -91,8 +92,8 @@ export class SugestoesRepository {
   ): Promise<DecisaoRegistrada | null> {
     const { rows } = await this.pool.query(
       `INSERT INTO decisoes_sugestoes
-         (sugestao_id, tipo, titulo, decisao, motivo, decidido_por)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (sugestao_id, tipo, titulo, decisao, motivo, profissionais, decidido_por)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (sugestao_id) DO NOTHING
        RETURNING ${PROJECAO_DECISAO}`,
       [
@@ -101,6 +102,7 @@ export class SugestoesRepository {
         decisao.titulo,
         decisao.decisao,
         decisao.motivo,
+        decisao.profissionais,
         decisao.decididoPor,
       ],
     );
@@ -114,16 +116,27 @@ export class SugestoesRepository {
     );
   }
 
-  async listarHistorico(limite = 50): Promise<DecisaoHistorico[]> {
+  // Sem profissionalId, lista tudo (coordenação); com ele, só as decisões que o envolviam
+  async listarHistorico(
+    profissionalId?: string,
+    limite = 50,
+  ): Promise<DecisaoHistorico[]> {
+    const valores: unknown[] = [limite];
+    let filtro = '';
+    if (profissionalId) {
+      valores.push(profissionalId);
+      filtro = 'WHERE $2 = ANY(d.profissionais)';
+    }
     const { rows } = await this.pool.query(
       `SELECT d.id, d.sugestao_id AS "sugestaoId", d.tipo, d.titulo, d.decisao,
-              d.motivo, d.decidido_por AS "decididoPor", d.decidido_em AS "decididoEm",
-              pr.nome_completo AS "decididoPorNome"
+              d.motivo, d.profissionais, d.decidido_por AS "decididoPor",
+              d.decidido_em AS "decididoEm", pr.nome_completo AS "decididoPorNome"
          FROM decisoes_sugestoes d
          JOIN profissionais pr ON pr.id = d.decidido_por
+        ${filtro}
         ORDER BY d.decidido_em DESC
         LIMIT $1`,
-      [limite],
+      valores,
     );
     return rows;
   }

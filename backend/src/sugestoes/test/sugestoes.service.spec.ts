@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { TipoAtendimento } from '../../atendimentos/dto/create-atendimento.dto';
@@ -31,6 +32,12 @@ describe('SugestoesService', () => {
 
   const usuarioId = 'c2aade77-7e2b-4ef8-bb6d-6bb9bd380a33';
   const profissionalId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+  const coordenacao = { id: usuarioId, coordenacao: true };
+  const voluntario = { id: profissionalId, coordenacao: false };
+  const outroVoluntario = {
+    id: 'e4ccf055-5a4d-4ef8-bb6d-6bb9bd380a55',
+    coordenacao: false,
+  };
   const idVaga = idSugestao(`vaga_fila:fila-1:${profissionalId}`);
 
   // Quarta-feira, 25/11/2026, 09:00 em Recife
@@ -82,7 +89,7 @@ describe('SugestoesService', () => {
     it('calcula as sugestões com a agenda da semana atual até 30 dias à frente', async () => {
       comUmaFamiliaNaFila();
 
-      const resultado = await service.listar();
+      const resultado = await service.listar(coordenacao);
 
       expect(repository.listarAgendados).toHaveBeenCalledWith(
         new Date('2026-11-23T03:00:00.000Z'),
@@ -90,7 +97,12 @@ describe('SugestoesService', () => {
       );
       expect(resultado.geradasEm).toBe(agora.toISOString());
       expect(resultado.sugestoes).toEqual([
-        expect.objectContaining({ id: idVaga, tipo: TipoSugestao.VAGA_FILA }),
+        expect.objectContaining({
+          id: idVaga,
+          tipo: TipoSugestao.VAGA_FILA,
+          profissionais: [profissionalId],
+          podeDecidir: true,
+        }),
       ]);
     });
   });
@@ -101,7 +113,7 @@ describe('SugestoesService', () => {
       repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
       atendimentosService.create.mockResolvedValueOnce({ id: 'atendimento-1' });
 
-      const resultado = await service.aprovar(idVaga, usuarioId);
+      const resultado = await service.aprovar(idVaga, coordenacao);
 
       expect(repository.registrarDecisao).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -109,6 +121,7 @@ describe('SugestoesService', () => {
           tipo: TipoSugestao.VAGA_FILA,
           decisao: Decisao.APROVADA,
           motivo: null,
+          profissionais: [profissionalId],
           decididoPor: usuarioId,
         }),
       );
@@ -130,7 +143,7 @@ describe('SugestoesService', () => {
       comUmaFamiliaNaFila('tea', pacienteTea);
       repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
 
-      await service.aprovar(idVaga, usuarioId);
+      await service.aprovar(idVaga, coordenacao);
 
       expect(atendimentosService.create).toHaveBeenCalledWith(
         expect.objectContaining({ pacienteId: pacienteTea, isTea: true }),
@@ -172,7 +185,10 @@ describe('SugestoesService', () => {
       listaEsperaService.consultar.mockResolvedValue([]);
       repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
 
-      await service.aprovar(idSugestao(`sobrecarga:at-1:${outro}`), usuarioId);
+      await service.aprovar(
+        idSugestao(`sobrecarga:at-1:${outro}`),
+        coordenacao,
+      );
 
       expect(atendimentosService.update).toHaveBeenCalledWith('at-1', {
         profissionalId: outro,
@@ -197,22 +213,22 @@ describe('SugestoesService', () => {
 
       await service.aprovar(
         idSugestao('reducao_frequencia:beneficiario:3:at-4'),
-        usuarioId,
+        coordenacao,
       );
 
       expect(atendimentosService.cancel).toHaveBeenCalledTimes(1);
       expect(atendimentosService.cancel).toHaveBeenCalledWith(
         'at-4',
-        'Redução de frequência sugerida pelo sistema e aprovada pela coordenação',
+        'Redução de frequência sugerida pelo sistema e aprovada em Sugestões de IA',
       );
     });
 
     it('recusa uma sugestão que não está mais disponível', async () => {
       comUmaFamiliaNaFila();
 
-      await expect(service.aprovar('f'.repeat(24), usuarioId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.aprovar('f'.repeat(24), coordenacao),
+      ).rejects.toThrow(NotFoundException);
       expect(repository.registrarDecisao).not.toHaveBeenCalled();
     });
 
@@ -220,7 +236,7 @@ describe('SugestoesService', () => {
       comUmaFamiliaNaFila();
       repository.registrarDecisao.mockResolvedValueOnce(null);
 
-      await expect(service.aprovar(idVaga, usuarioId)).rejects.toThrow(
+      await expect(service.aprovar(idVaga, coordenacao)).rejects.toThrow(
         ConflictException,
       );
       expect(atendimentosService.create).not.toHaveBeenCalled();
@@ -233,7 +249,7 @@ describe('SugestoesService', () => {
         new BadRequestException('Conflito de horário'),
       );
 
-      await expect(service.aprovar(idVaga, usuarioId)).rejects.toThrow(
+      await expect(service.aprovar(idVaga, coordenacao)).rejects.toThrow(
         'Conflito de horário',
       );
       expect(repository.removerDecisao).toHaveBeenCalledWith(idVaga);
@@ -245,7 +261,11 @@ describe('SugestoesService', () => {
       comUmaFamiliaNaFila();
       repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
 
-      await service.descartar(idVaga, 'Família pediu outro horário', usuarioId);
+      await service.descartar(
+        idVaga,
+        'Família pediu outro horário',
+        coordenacao,
+      );
 
       expect(repository.registrarDecisao).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -262,14 +282,92 @@ describe('SugestoesService', () => {
       repository.registrarDecisao.mockResolvedValueOnce(null);
 
       await expect(
-        service.descartar(idVaga, 'motivo', usuarioId),
+        service.descartar(idVaga, 'motivo', coordenacao),
       ).rejects.toThrow(ConflictException);
     });
+  });
+
+  describe('voluntário', () => {
+    it('vê só as sugestões que mudam a própria agenda, podendo decidir', async () => {
+      comUmaFamiliaNaFila();
+
+      const dele = await service.listar(voluntario);
+      const deOutro = await service.listar(outroVoluntario);
+
+      expect(dele.sugestoes).toEqual([
+        expect.objectContaining({ id: idVaga, podeDecidir: true }),
+      ]);
+      expect(deOutro.sugestoes).toEqual([]);
+    });
+
+    it('aprova uma sugestão da própria agenda', async () => {
+      comUmaFamiliaNaFila();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+
+      await service.aprovar(idVaga, voluntario);
+
+      expect(repository.registrarDecisao).toHaveBeenCalledWith(
+        expect.objectContaining({ decididoPor: profissionalId }),
+      );
+      expect(atendimentosService.create).toHaveBeenCalled();
+    });
+
+    it('não decide sugestão de outro profissional', async () => {
+      comUmaFamiliaNaFila();
+
+      await expect(
+        service.descartar(idVaga, 'motivo', outroVoluntario),
+      ).rejects.toThrow(NotFoundException);
+      expect(repository.registrarDecisao).not.toHaveBeenCalled();
+    });
+
+    it('vê, mas não decide, redução que cancela atendimento de outro profissional', async () => {
+      comUmaFamiliaNaFila();
+      const outro = outroVoluntario.id;
+      repository.listarAgendados.mockResolvedValue(
+        ['11-26', '12-01', '12-03', '12-08', '12-10', '12-15'].map(
+          (dia, i) => ({
+            id: `at-${i}`,
+            profissionalId: i === 5 ? outro : profissionalId,
+            pacienteId: '3',
+            isTea: false,
+            pacienteNome: 'João',
+            dataInicio: `2026-${dia}T08:00:00-03:00`,
+            tipo: TipoAtendimento.PSICOLOGIA,
+          }),
+        ),
+      );
+      const idReducao = idSugestao(
+        'reducao_frequencia:beneficiario:3:at-4,at-5',
+      );
+
+      const { sugestoes } = await service.listar(voluntario);
+
+      expect(sugestoes).toContainEqual(
+        expect.objectContaining({ id: idReducao, podeDecidir: false }),
+      );
+      await expect(service.aprovar(idReducao, voluntario)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(atendimentosService.cancel).not.toHaveBeenCalled();
+    });
+
+    it('vê no histórico só as decisões que o envolviam', async () => {
+      await service.historico(voluntario);
+      expect(repository.listarHistorico).toHaveBeenCalledWith(profissionalId);
+    });
+  });
+
+  it('historico da coordenação lista todas as decisões', async () => {
+    await service.historico(coordenacao);
+    expect(repository.listarHistorico).toHaveBeenCalledWith(undefined);
   });
 
   it('historico delega para o repositório', async () => {
     repository.listarHistorico.mockResolvedValueOnce([{ id: 'decisao-1' }]);
 
-    await expect(service.historico()).resolves.toEqual([{ id: 'decisao-1' }]);
+    await expect(service.historico(coordenacao)).resolves.toEqual([
+      { id: 'decisao-1' },
+    ]);
   });
 });
