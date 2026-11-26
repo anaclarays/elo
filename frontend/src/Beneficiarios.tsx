@@ -502,7 +502,7 @@ export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAcc
       : <div className="table-scroll beneficiary-table">
         <table aria-label="Beneficiários cadastrados">
           <thead><tr><th scope="col">ID</th><th scope="col">Paciente</th><th scope="col">Queixa de aprendizado</th>
-            <th scope="col">Data de cadastro</th><th scope="col">Status</th><th scope="col">Ações</th></tr></thead>
+            <th scope="col">Data de cadastro</th><th scope="col">Ações</th></tr></thead>
           <tbody>{filtered.map((person) => {
             const age = ageAt(person.dataNascimento, today);
             return <tr key={person.id}>
@@ -510,7 +510,6 @@ export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAcc
               <th scope="row">{person.nomeBeneficiario}{age !== undefined && <small>{age} {age === 1 ? 'ano' : 'anos'}</small>}</th>
               <td>{person.possuiDeficit ? complaintLabel(person.queixa) : '—'}</td>
               <td>{displayDate(person.dataCadastro) || '—'}</td>
-              <td><span className={person.ativo ? 'professional-status active' : 'professional-status'}>{person.ativo ? 'Ativo' : 'Inativo'}</span></td>
               <td><div className="beneficiary-actions">
                 <button type="button" className="text-button" onClick={() => open({ type: 'history', person })}>Ver Prontuário</button>
                 <button type="button" className="icon-button" aria-label={`Editar cadastro de ${person.nomeBeneficiario}`}

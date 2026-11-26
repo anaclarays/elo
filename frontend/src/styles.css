@@ -292,9 +292,10 @@ tr:last-child td { border-bottom: 0; }
 .beneficiary-search { flex: 0 1 27rem; }
 .beneficiary-choices input { accent-color: var(--blue); }
 .beneficiary-table { border: 1px solid var(--border); border-radius: 1rem; background: var(--white); }
-.beneficiary-table table { min-width: 47rem; }
-.beneficiary-table th, .beneficiary-table td { padding: .85rem clamp(.8rem, 1.75vw, 1.4rem); }
-.beneficiary-table thead th { background: var(--canvas); color: var(--muted); font-weight: 500; white-space: nowrap; }
+.beneficiary-table table { min-width: 36rem; }
+.beneficiary-table th, .beneficiary-table td { padding: .85rem clamp(.6rem, 1.2vw, 1.4rem); }
+/* Cabeçalhos podem quebrar linha para a tabela caber em telas de 1024px sem rolagem lateral */
+.beneficiary-table thead th { background: var(--canvas); color: var(--muted); font-weight: 500; }
 .beneficiary-table thead th:last-child { text-align: right; }
 .beneficiary-table tbody th { color: var(--text); font-weight: 600; }
 .beneficiary-table tbody td { color: var(--muted); }
