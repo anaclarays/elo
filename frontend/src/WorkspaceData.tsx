@@ -7,7 +7,8 @@ export function PageHeader({ title, description, action }: { title: string; desc
   return <header className="page-heading"><div><h1>{title}</h1><p>{description}</p></div>{action}</header>;
 }
 
-export function useRecords<T>(path: string, token: string, onExpired: () => void) {
+// Sem path (null), nada é carregado: útil para dados que só alguns perfis podem consultar
+export function useRecords<T>(path: string | null, token: string, onExpired: () => void) {
   const [records, setRecords] = useState<T[]>();
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
@@ -15,6 +16,7 @@ export function useRecords<T>(path: string, token: string, onExpired: () => void
     let active = true;
     setRecords(undefined);
     setError('');
+    if (!path) return;
     void api<T[]>(path, { token }).then((data) => {
       if (active) setRecords(data);
     }).catch((failure: unknown) => {

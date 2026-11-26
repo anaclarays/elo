@@ -5,6 +5,7 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError, areas, expiration, type Session } from './api';
+import { Agenda } from './Agenda';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
 import { Team } from './Team';
@@ -561,7 +562,8 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
-        {[overview[2], operations[0]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
+        <Route path={overview[2].path} element={<PendingModule title={overview[2].label} />} />
+        <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
           ? <Team {...dataAccess} onNotify={setNotification} /> : home} />
