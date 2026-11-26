@@ -7,7 +7,8 @@ import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigat
 import { api, ApiError, areas, expiration, type Session } from './api';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
-import { Team, TeamNotification, type TeamNotificationAction } from './Team';
+import { Team } from './Team';
+import { WorkspaceNotification, type Notification } from './WorkspaceFeedback';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 
 const overview = [
@@ -513,16 +514,16 @@ function PendingModule({ title }: { title: string }) {
 
 export default function App() {
   const [session, setSession] = useState(readSession);
-  const [teamNotification, setTeamNotification] = useState<{ action: TeamNotificationAction }>();
+  const [notification, setNotification] = useState<Notification>();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   useEffect(() => {
-    if (!teamNotification) return;
-    const timer = window.setTimeout(() => setTeamNotification(undefined), 2000);
+    if (!notification) return;
+    const timer = window.setTimeout(() => setNotification(undefined), 2000);
     return () => window.clearTimeout(timer);
-  }, [teamNotification]);
+  }, [notification]);
 
   function signIn(newSession: Session) {
     sessionStorage.setItem(sessionKey, JSON.stringify(newSession));
@@ -548,7 +549,7 @@ export default function App() {
   const login = <Navigate to="/login" replace />;
   const dataAccess = { token: session?.accessToken ?? '', onExpired: sessionExpired };
   return <>
-    <TeamNotification action={teamNotification?.action} />
+    <WorkspaceNotification notification={notification} />
     <Routes>
       <Route path="/" element={session ? home : login} />
       <Route path="/inicio" element={session ? home : <Welcome />} />
@@ -558,11 +559,11 @@ export default function App() {
       <Route path="/redefinir-senha" element={<ResetPassword />} />
       <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
-        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} />} />
+        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification} />} />
         {[overview[2], operations[0]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
-          ? <Team {...dataAccess} onNotify={(action) => setTeamNotification({ action })} /> : home} />
+          ? <Team {...dataAccess} onNotify={setNotification} /> : home} />
         <Route element={session?.profissional.areaAtuacao === 'coordenacao_administrativa' ? <Outlet /> : home}>
           {[management[0], management[2]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
         </Route>
