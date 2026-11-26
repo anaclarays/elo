@@ -264,6 +264,11 @@ em { color: var(--danger); font-style: normal; }
 .profile-options button:hover { background: var(--blue-light); }
 .close-drawer, .open-drawer, .drawer-backdrop { display: none; }
 .main-content { max-width: 110rem; margin-inline: auto; padding: clamp(1.15rem, 3vw, 3rem); }
+.profile-modal-hero { display: flex; justify-content: center; margin-bottom: .35rem; }
+.profile-modal-avatar { width: 4.5rem; height: 4.5rem; font-size: 1.4rem; }
+.profile-options .profile-signout { color: var(--danger); }
+.profile-options .profile-signout:hover { background: var(--danger-light); }
+
 .page-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
 .page-heading h1 { font-size: 1.5rem; letter-spacing: -.02em; }
 .page-heading p { margin-top: .35rem; color: var(--muted); }
