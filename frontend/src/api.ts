@@ -40,7 +40,12 @@ export async function api<T>(path: string, options: { body?: object; token?: str
     throw new Error('Não foi possível conectar ao sistema. Tente novamente.');
   }
 
-  const data = await response.json().catch(() => null);
+  const payload = await response.text().catch(() => null);
+  if (response.ok && options.method === 'DELETE' && (response.status === 204 || payload === '')) {
+    return undefined as T;
+  }
+  let data;
+  try { data = payload ? JSON.parse(payload) : null; } catch { data = null; }
   if (!response.ok || !data) {
     const message = response.status === 429
       ? 'Muitas tentativas. Aguarde um minuto e tente novamente.'

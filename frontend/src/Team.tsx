@@ -1,9 +1,10 @@
-import { CircleAlert, CircleCheck, Clock, Mail, Pencil, Phone, Trash2, UserRoundPlus, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Clock, Mail, Pencil, Phone, Trash2, UserRoundPlus } from 'lucide-react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, ApiError, areas, type Area } from './api';
 import { Field, formatCpf, PasswordChecklist, PasswordField, passwordRules } from './AuthPages';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
+import { WorkspaceDialog, type Notification } from './WorkspaceFeedback';
 
 const endpoint = '/profissionais';
 const areaFilters = { ...areas, coordenacao_administrativa: 'Coordenação' };
@@ -33,18 +34,6 @@ interface Appointment {
 }
 
 type TeamAction = { type: 'create' } | { type: 'edit' | 'remove'; person: Professional };
-export type TeamNotificationAction = 'create' | 'remove';
-
-export function TeamNotification({ action }: { action?: TeamNotificationAction }) {
-  return <div className="team-notification" role="status">
-    {action === 'create' && <span className="team-notification-content">
-      <CircleCheck size={18} aria-hidden="true" /> Profissional cadastrado
-    </span>}
-    {action === 'remove' && <span className="team-notification-content team-notification-removed">
-      <CircleAlert size={18} aria-hidden="true" /> Profissional removido
-    </span>}
-  </div>;
-}
 
 function matchText(value: string) {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR').trim();
@@ -123,28 +112,6 @@ function ProfessionalCard({ person, booked, onAction }: {
   </article>;
 }
 
-function TeamDialog({ title, pending, compact, onClose, children }: {
-  title: string; pending: boolean; compact?: boolean; onClose: () => void; children: ReactNode;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    if (!element) return;
-    element.showModal();
-    element.querySelector<HTMLElement>('[data-initial-focus]')?.focus();
-    return () => element.close();
-  }, []);
-
-  return <dialog ref={dialog} className={`team-dialog${compact ? ' team-dialog-compact' : ''}`} aria-labelledby="team-dialog-title"
-    onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}>
-    <header className="team-dialog-header">
-      <h2 id="team-dialog-title">{title}</h2>
-      <button type="button" className="icon-button" aria-label="Fechar" onClick={onClose} disabled={pending}><X size={20} /></button>
-    </header>
-    {children}
-  </dialog>;
-}
-
 function TeamEditor({ action, pending, error, onClose, onValidate, onSave }: {
   action: TeamAction; pending: boolean; error: string; onClose: () => void;
   onValidate: (message: string) => void; onSave: (body: object) => void;
@@ -198,9 +165,9 @@ function TeamEditor({ action, pending, error, onClose, onValidate, onSave }: {
     });
   }
 
-  return <TeamDialog title={person ? 'Editar Profissional' : 'Novo Profissional'} onClose={onClose} pending={pending}>
-    <form className="team-dialog-form" onSubmit={submit}>
-      <div className="team-dialog-content">
+  return <WorkspaceDialog title={person ? 'Editar Profissional' : 'Novo Profissional'} onClose={onClose} pending={pending}>
+    <form className="workspace-dialog-form" onSubmit={submit}>
+      <div className="workspace-dialog-content">
         <fieldset className="team-fields" disabled={pending}>
           <legend className="sr-only">Dados do profissional</legend>
           <Field id="team-name" label="Nome completo" defaultValue={person?.nome_completo} required data-initial-focus />
@@ -257,18 +224,18 @@ function TeamEditor({ action, pending, error, onClose, onValidate, onSave }: {
         </fieldset>
         {error && <p className="notice error" role="alert">{error}</p>}
       </div>
-      <footer className="form-actions team-dialog-footer">
+      <footer className="form-actions workspace-dialog-footer">
         <button type="button" className="back-button" disabled={pending} onClick={onClose}>Cancelar</button>
         <button className="primary-button" disabled={pending || (!person && !passwordRules.every(([, test]) => test(password)))}>
           {pending ? (person ? 'Salvando…' : 'Cadastrando…') : (person ? 'Salvar' : 'Cadastrar')}
         </button>
       </footer>
     </form>
-  </TeamDialog>;
+  </WorkspaceDialog>;
 }
 
 export function Team({ token, onExpired, onNotify }: DataAccess & {
-  onNotify: (action: TeamNotificationAction) => void;
+  onNotify: (notification: Notification) => void;
 }) {
   const query = matchText(useOutletContext<string>() ?? '');
   const [area, setArea] = useState('');
@@ -302,7 +269,9 @@ export function Team({ token, onExpired, onNotify }: DataAccess & {
       }
       setAction(undefined);
       if (action.type === 'edit') setEdited(true);
-      else onNotify(action.type);
+      else onNotify(action.type === 'create'
+        ? { message: 'Profissional cadastrado', tone: 'success' }
+        : { message: 'Profissional removido', tone: 'danger' });
       if (action.type === 'create') setArea('');
       reload();
       requestAnimationFrame(() => newButton.current?.focus());
@@ -337,19 +306,19 @@ export function Team({ token, onExpired, onNotify }: DataAccess & {
       : !filtered.length ? <p className="team-message" role="status">Nenhum profissional encontrado.</p>
       : <div className="professional-grid">{filtered.map((person) => <ProfessionalCard key={person.id} person={person}
         booked={occupancy ? occupancy.get(person.id) ?? 0 : undefined} onAction={open} />)}</div>}
-    {action?.type === 'remove' ? <TeamDialog title="Remover profissional" compact pending={pending} onClose={() => setAction(undefined)}>
-      <div className="team-dialog-content team-remove-content">
+    {action?.type === 'remove' ? <WorkspaceDialog title="Remover profissional" size="compact" pending={pending} onClose={() => setAction(undefined)}>
+      <div className="workspace-dialog-content workspace-remove-content">
         <p>Remover <strong>{action.person.nome_completo}</strong> da equipe?</p>
         <p>O cadastro será desativado. Os atendimentos e registros deste profissional serão mantidos.</p>
         {saveError && <p className="notice error" role="alert">{saveError}</p>}
       </div>
-      <footer className="form-actions team-dialog-footer">
+      <footer className="form-actions workspace-dialog-footer">
         <button type="button" className="back-button" data-initial-focus disabled={pending} onClick={() => setAction(undefined)}>Cancelar</button>
-        <button type="button" className="primary-button team-danger" disabled={pending} onClick={() => void save()}>
+        <button type="button" className="primary-button workspace-danger" disabled={pending} onClick={() => void save()}>
           {pending ? 'Removendo…' : 'Remover'}
         </button>
       </footer>
-    </TeamDialog> : action && <TeamEditor action={action} pending={pending} error={saveError}
+    </WorkspaceDialog> : action && <TeamEditor action={action} pending={pending} error={saveError}
       onValidate={setSaveError} onSave={(body) => void save(body)} onClose={() => setAction(undefined)} />}
   </section>;
 }
