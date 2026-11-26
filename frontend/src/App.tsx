@@ -200,6 +200,12 @@ interface WaitlistProfessional {
   nome_completo: string;
   horario_inicio: string | null;
   horario_fim: string | null;
+  status: string | null;
+}
+
+// Profissional marcado como "Inativo" na tela de Equipe não recebe novos atendimentos
+function isActiveProfessional(professional: WaitlistProfessional) {
+  return professional.status?.trim().toLowerCase() !== 'inativo';
 }
 
 type PatientType = 'all' | WaitingPatient['tipoPaciente'];
@@ -286,7 +292,7 @@ function Waitlist({ token, onExpired, canManage }: DataAccess & { canManage: boo
     let active = true;
     setProfessionalError('');
     void api<WaitlistProfessional[]>('/profissionais', { token })
-      .then((data) => { if (active) setProfessionals(data); })
+      .then((data) => { if (active) setProfessionals(data.filter(isActiveProfessional)); })
       .catch((failure: unknown) => {
         if (!active) return;
         if (failure instanceof ApiError && failure.status === 401) onExpired();
