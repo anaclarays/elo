@@ -3,7 +3,7 @@ import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode } fr
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api, areas, type Area, type Session } from './api';
 
-const passwordRules = [
+export const passwordRules = [
   ['Mínimo de 8 caracteres', (value: string) => Array.from(value).length >= 8],
   ['Uma letra maiúscula', (value: string) => /[A-Z]/.test(value)],
   ['Uma letra minúscula', (value: string) => /[a-z]/.test(value)],
@@ -11,14 +11,14 @@ const passwordRules = [
   ['Um caractere especial', (value: string) => /[^A-Za-z0-9]/.test(value)],
 ] as const;
 
-function Field({ label, id, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; id: string }) {
+export function Field({ label, id, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; id: string }) {
   return <label className="field" htmlFor={id}>
     <span>{label}{props.required && <em aria-hidden="true"> *</em>}</span>
     <input id={id} name={id} {...props} />
   </label>;
 }
 
-function PasswordField({ id, label, autoComplete, value, onValue, describedBy }: {
+export function PasswordField({ id, label, autoComplete, value, onValue, describedBy }: {
   id: string; label: string; autoComplete: string; value: string;
   onValue: (value: string) => void; describedBy?: string;
 }) {
@@ -35,7 +35,7 @@ function PasswordField({ id, label, autoComplete, value, onValue, describedBy }:
   </div>;
 }
 
-function PasswordChecklist({ password }: { password: string }) {
+export function PasswordChecklist({ password }: { password: string }) {
   return <ul className="password-checklist" id="password-rules">
     {passwordRules.map(([label, test]) => {
       const valid = test(password);
@@ -190,11 +190,11 @@ export function ResetPassword() {
   </AuthLayout>;
 }
 
-function formatCpf(value: string) {
-  return value.replace(/\D/g, '').slice(0, 11)
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3}\.\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1,2})$/, (match, prefix, suffix) => match.length > 3 ? `${prefix}-${suffix}` : match);
+export function formatCpf(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2})$/, '$1.$2.$3-$4')
+    .replace(/^(\d{3})(\d{3})(\d{1,3})$/, '$1.$2.$3')
+    .replace(/^(\d{3})(\d{1,3})$/, '$1.$2');
 }
 
 export function Register({ onSession }: { onSession: (session: Session) => void }) {
