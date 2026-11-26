@@ -1,6 +1,6 @@
 import {
   CalendarCheck, CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, Users, UserRoundCog, X,
+  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Sparkles, Trash2, Users, UserRoundCog, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { api, ApiError, areas, expiration, type Session } from './api';
 import { Agenda } from './Agenda';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
+import { Sugestoes } from './Sugestoes';
 import { Team } from './Team';
 import { WorkspaceNotification, type Notification } from './WorkspaceFeedback';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
@@ -16,6 +17,8 @@ const overview = [
   { label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
   { label: 'Beneficiários', path: '/beneficiarios', Icon: Users },
 ];
+// Só a coordenação vê as sugestões, porque aprovar muda a agenda de toda a equipe
+const suggestions = { label: 'Sugestões de IA', path: '/sugestoes-ia', Icon: Sparkles };
 const operations = [
   { label: 'Agenda Inteligente', path: '/agenda-inteligente', Icon: CalendarClock },
   { label: 'Lista de Espera', path: '/lista-de-espera', Icon: ListPlus },
@@ -25,7 +28,7 @@ const management = [
   { label: 'Equipe', path: '/equipe', Icon: UserRoundCog },
   { label: 'Configurações & LGPD', path: '/configuracoes-lgpd', Icon: ShieldCheck },
 ];
-const navigation = [...overview, ...operations, ...management];
+const navigation = [...overview, suggestions, ...operations, ...management];
 const sessionKey = 'elo.web.session';
 
 function readSession(): Session | null {
@@ -126,7 +129,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
           requestAnimationFrame(() => content.current?.focus());
         }
       }}>
-        <NavigationGroup title="Visão Geral" items={overview} />
+        <NavigationGroup title="Visão Geral" items={admin ? [...overview, suggestions] : overview} />
         <NavigationGroup title="Operação" items={operations} />
         {admin && <NavigationGroup title="Gestão" items={management} />}
       </nav>
@@ -161,7 +164,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
   </div>;
 }
 
-function Dashboard({ token, onExpired }: DataAccess) {
+function Dashboard({ token, onExpired, admin }: DataAccess & { admin: boolean }) {
   const { records, error, reload } = useRecords<Beneficiario>('/pacientes', token, onExpired);
   const today = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date());
   return <>
@@ -171,6 +174,7 @@ function Dashboard({ token, onExpired }: DataAccess) {
         <h2>Painel Operacional</h2>
         <div className="operation-links">
           {operations.map(({ label, path, Icon }) => <Link to={path} key={path}><Icon size={20} aria-hidden="true" /> {label}</Link>)}
+          {admin && <Link to={suggestions.path}><suggestions.Icon size={20} aria-hidden="true" /> {suggestions.label}</Link>}
         </div>
       </section>
       <section className="panel dashboard-summary">
@@ -557,9 +561,11 @@ export default function App() {
       <Route path="/recuperar-senha" element={<Recovery />} />
       <Route path="/redefinir-senha" element={<ResetPassword />} />
       <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
-        <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
+        <Route path="/dashboard" element={<Dashboard {...dataAccess} admin={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
+        <Route path={suggestions.path} element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
+          ? <Sugestoes {...dataAccess} onNotify={setNotification} /> : home} />
         <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
