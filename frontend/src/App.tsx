@@ -559,7 +559,8 @@ export default function App() {
       <Route path="/redefinir-senha" element={<ResetPassword />} />
       <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
-        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification} />} />
+        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
+          canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         {[overview[2], operations[0]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'

@@ -10,6 +10,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { CoordenacaoGuard } from '../../auth/guards/coordenacao.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import {
   CreateBeneficiarioDto,
@@ -57,8 +58,9 @@ export class PacientesController {
     return this.pacientesService.update(id, updatePacienteDto);
   }
 
+  // Excluir desativa o cadastro e tira o paciente da lista de espera: só a coordenação pode
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, CoordenacaoGuard)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.pacientesService.remove(id);
   }

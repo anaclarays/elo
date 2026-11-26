@@ -336,7 +336,10 @@ function BeneficiaryHistory({ token, onExpired, person, onClose }: DataAccess & 
   </WorkspaceDialog>;
 }
 
-export function Beneficiarios({ token, onExpired, onNotify }: DataAccess & { onNotify: (notification: Notification) => void }) {
+// canRemove: só a coordenação exclui cadastros (excluir também tira o paciente da lista de espera)
+export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAccess & {
+  onNotify: (notification: Notification) => void; canRemove: boolean;
+}) {
   const [query, setQuery] = useState('');
   const [action, setAction] = useState<Action>();
   const [pending, setPending] = useState(false);
@@ -420,14 +423,14 @@ export function Beneficiarios({ token, onExpired, onNotify }: DataAccess & { onN
                 <button type="button" className="text-button" onClick={() => open({ type: 'history', person })}>Ver Prontuário</button>
                 <button type="button" className="icon-button" aria-label={`Editar cadastro de ${person.nomeBeneficiario}`}
                   onClick={() => open({ type: 'edit', person })}><Pencil size={18} aria-hidden="true" /></button>
-                <button type="button" className="icon-button professional-remove" aria-label={`Excluir cadastro de ${person.nomeBeneficiario}`}
-                  onClick={() => open({ type: 'remove', person })}><Trash2 size={18} aria-hidden="true" /></button>
+                {canRemove && <button type="button" className="icon-button professional-remove" aria-label={`Excluir cadastro de ${person.nomeBeneficiario}`}
+                  onClick={() => open({ type: 'remove', person })}><Trash2 size={18} aria-hidden="true" /></button>}
               </div></td>
             </tr>;
           })}</tbody>
         </table>
       </div>}
-    {action?.type === 'remove' && <WorkspaceDialog title="Excluir cadastro" size="compact" pending={pending} onClose={close}>
+    {canRemove && action?.type === 'remove' && <WorkspaceDialog title="Excluir cadastro" size="compact" pending={pending} onClose={close}>
       <div className="workspace-dialog-content workspace-remove-content">
         <p>Deseja excluir o cadastro de <strong>{action.person.nomeBeneficiario}</strong>? O cadastro será desativado.</p>
         {saveError && <p className="notice error" role="alert">{saveError}</p>}
