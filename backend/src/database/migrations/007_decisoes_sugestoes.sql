@@ -1,9 +1,14 @@
--- Decisões da coordenação sobre as sugestões automáticas.
+-- Decisões (aprovar ou descartar) sobre as sugestões automáticas.
 -- As sugestões são calculadas na hora a partir da agenda e da lista de espera;
 -- aqui fica só o que foi aprovado ou descartado, por quem, quando e por quê.
-CREATE TYPE decisao_sugestao_enum AS ENUM ('aprovada', 'descartada');
+-- O backend também cria esta tabela ao iniciar (database.service.ts), então
+-- a migration pode rodar antes ou depois sem erro.
+DO $$ BEGIN
+  CREATE TYPE decisao_sugestao_enum AS ENUM ('aprovada', 'descartada');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE decisoes_sugestoes (
+CREATE TABLE IF NOT EXISTS decisoes_sugestoes (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sugestao_id   VARCHAR(64) NOT NULL UNIQUE,
   tipo          VARCHAR(30) NOT NULL
@@ -21,4 +26,7 @@ CREATE TABLE decisoes_sugestoes (
     CHECK (decisao = 'aprovada' OR btrim(coalesce(motivo, '')) <> '')
 );
 
-CREATE INDEX decisoes_sugestoes_decidido_em_idx ON decisoes_sugestoes (decidido_em DESC);
+ALTER TABLE decisoes_sugestoes
+  ADD COLUMN IF NOT EXISTS profissionais UUID[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS decisoes_sugestoes_decidido_em_idx ON decisoes_sugestoes (decidido_em DESC);

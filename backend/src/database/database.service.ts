@@ -84,6 +84,43 @@ export class DatabaseService implements OnModuleInit {
       )
     `);
 
+    // Decisões das Sugestões de IA (mesmo conteúdo da migration 007), criadas aqui
+    // para a tela funcionar mesmo em bancos onde a migration ainda não rodou
+    await this.pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE decisao_sugestao_enum AS ENUM ('aprovada', 'descartada');
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `);
+
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS decisoes_sugestoes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        sugestao_id VARCHAR(64) NOT NULL UNIQUE,
+        tipo VARCHAR(30) NOT NULL
+          CHECK (tipo IN ('sobrecarga', 'vaga_fila', 'reducao_frequencia')),
+        titulo TEXT NOT NULL,
+        decisao decisao_sugestao_enum NOT NULL,
+        motivo TEXT,
+        profissionais UUID[] NOT NULL DEFAULT '{}',
+        decidido_por UUID NOT NULL REFERENCES profissionais(id),
+        decidido_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT decisao_motivo_ck
+          CHECK (decisao = 'aprovada' OR btrim(coalesce(motivo, '')) <> '')
+      )
+    `);
+
+    // Bancos que rodaram a primeira versão da migration 007 não têm esta coluna
+    await this.pool.query(`
+      ALTER TABLE decisoes_sugestoes
+        ADD COLUMN IF NOT EXISTS profissionais UUID[] NOT NULL DEFAULT '{}'
+    `);
+
+    await this.pool.query(`
+      CREATE INDEX IF NOT EXISTS decisoes_sugestoes_decidido_em_idx
+        ON decisoes_sugestoes (decidido_em DESC)
+    `);
+
     const result = await this.pool.query('SELECT NOW()');
     console.log('Conexão com o PostgreSQL (Neon) estabelecida:', result.rows[0]);
   }

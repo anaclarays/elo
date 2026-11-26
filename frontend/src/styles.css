@@ -633,7 +633,6 @@ body:has(.workspace-dialog[open]) { overflow: hidden; }
 
 /* Sugestões de IA */
 .suggestions-refresh { display: inline-flex; align-items: center; gap: .45rem; width: auto; }
-.suggestions-note { max-width: 60rem; margin: 0 0 1rem; color: var(--muted); font-size: .9rem; }
 .suggestions-tabs { display: flex; flex-wrap: wrap; gap: .55rem; margin-bottom: 1rem; }
 .suggestions-tabs .agenda-toggle { display: inline-flex; align-items: center; gap: .4rem; }
 .suggestions-empty { display: flex; align-items: flex-start; gap: .8rem; }

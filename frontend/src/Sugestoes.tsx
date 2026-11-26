@@ -111,12 +111,6 @@ export function Sugestoes({ token, onExpired, onNotify, admin }: DataAccess & { 
         <RefreshCw size={17} aria-hidden="true" /> Atualizar
       </button>} />
 
-    <p className="suggestions-note">
-      As sugestões vêm de regras sobre a capacidade semanal da equipe, a agenda e a lista de espera.
-      Elas apoiam a decisão e não substituem a avaliação dos profissionais: nada muda na agenda sem aprovação.
-      {!admin && ' Aqui aparecem as sugestões que mudam a sua agenda.'}
-    </p>
-
     <div className="suggestions-tabs" role="group" aria-label="Exibir">
       <button type="button" className="agenda-toggle" aria-pressed={view === 'pending'} onClick={() => setView('pending')}>
         Pendentes{count ? ` (${count})` : ''}
