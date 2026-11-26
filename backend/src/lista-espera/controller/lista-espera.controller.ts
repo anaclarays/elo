@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { CoordenacaoGuard } from '../../auth/guards/coordenacao.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdicionarListaEsperaDto } from '../dto/adicionar-lista-espera.dto';
 import { RetirarListaEsperaDto } from '../dto/retirar-lista-espera.dto';
@@ -39,7 +40,9 @@ export class ListaEsperaController {
     return this.listaEsperaService.adicionarManualmente(dto);
   }
 
+  // Só a coordenação pode retirar um paciente da fila manualmente
   @Patch(':id/retirar')
+  @UseGuards(CoordenacaoGuard)
   retirar(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RetirarListaEsperaDto,
