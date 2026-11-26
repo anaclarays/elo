@@ -1,6 +1,6 @@
 import {
   CalendarCheck, CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Sparkles, Trash2, Users, UserRoundCog, X,
+  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, Users, UserRoundCog, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -15,7 +15,6 @@ import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 const overview = [
   { label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
   { label: 'Beneficiários', path: '/beneficiarios', Icon: Users },
-  { label: 'Sugestões de IA', path: '/sugestoes-ia', Icon: Sparkles },
 ];
 const operations = [
   { label: 'Agenda Inteligente', path: '/agenda-inteligente', Icon: CalendarClock },
@@ -172,7 +171,6 @@ function Dashboard({ token, onExpired }: DataAccess) {
         <h2>Painel Operacional</h2>
         <div className="operation-links">
           {operations.map(({ label, path, Icon }) => <Link to={path} key={path}><Icon size={20} aria-hidden="true" /> {label}</Link>)}
-          <Link to="/sugestoes-ia"><Sparkles size={20} aria-hidden="true" /> Sugestões de IA</Link>
         </div>
       </section>
       <section className="panel dashboard-summary">
@@ -562,7 +560,6 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
-        <Route path={overview[2].path} element={<PendingModule title={overview[2].label} />} />
         <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
