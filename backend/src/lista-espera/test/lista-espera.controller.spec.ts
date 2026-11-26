@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { CoordenacaoGuard } from '../../auth/guards/coordenacao.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ListaEsperaController } from '../controller/lista-espera.controller';
 import { TipoPaciente } from '../enum/lista-espera.enum';
@@ -20,6 +21,8 @@ describe('ListaEsperaController', () => {
       providers: [{ provide: ListaEsperaService, useValue: mockService }],
     })
       .overrideGuard(JwtAuthGuard) // nos testes, o login é ignorado
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CoordenacaoGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
@@ -72,5 +75,22 @@ describe('ListaEsperaController', () => {
       'Mudou de cidade',
       'prof-1',
     );
+  });
+
+  it('exige o perfil de coordenação só para a retirada manual', () => {
+    const guardsRetirar = Reflect.getMetadata(
+      '__guards__',
+      ListaEsperaController.prototype.retirar,
+    );
+    expect(guardsRetirar).toContain(CoordenacaoGuard);
+
+    for (const rota of ['consultar', 'adicionar'] as const) {
+      const guards =
+        Reflect.getMetadata(
+          '__guards__',
+          ListaEsperaController.prototype[rota],
+        ) ?? [];
+      expect(guards).not.toContain(CoordenacaoGuard);
+    }
   });
 });

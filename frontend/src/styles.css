@@ -299,7 +299,9 @@ tr:last-child td { border-bottom: 0; }
 .waitlist-heading h1 { color: var(--text); font-size: 1.35rem; font-weight: 700; }
 .waitlist-heading p { margin-top: .2rem; color: var(--muted); font-size: .875rem; }
 .waitlist-notice { margin-bottom: .85rem; }
-.waitlist-filters { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .85rem; }
+.waitlist-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .85rem; }
+.waitlist-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.waitlist-search input { width: min(100%, 16rem); min-height: 2rem; padding: .3rem .7rem; border: 1px solid var(--border); border-radius: .65rem; font-size: .8rem; }
 .waitlist-filter {
   min-height: 1.75rem;
   padding: .2rem .7rem;
@@ -316,7 +318,7 @@ tr:last-child td { border-bottom: 0; }
 .waitlist-panel { padding: 0; overflow: hidden; border-radius: .75rem; }
 .waitlist-panel > .notice, .waitlist-panel > .text-button { margin: 1rem; }
 .waitlist-state { padding: 1.1rem; color: var(--muted); font-size: .9rem; }
-.waitlist-table table { min-width: 54rem; font-size: .8rem; }
+.waitlist-table table { min-width: 40rem; font-size: .8rem; }
 .waitlist-table th, .waitlist-table td { padding: .72rem .95rem; vertical-align: middle; }
 .waitlist-table th { background: #f3f3f3; color: var(--subtle); font-size: .7rem; font-weight: 600; }
 .waitlist-table td { border-bottom-color: #ededed; }
@@ -325,11 +327,8 @@ tr:last-child td { border-bottom: 0; }
 .waitlist-child strong { font-size: .8rem; font-weight: 600; }
 .waitlist-child small { color: var(--subtle); font-size: .72rem; white-space: nowrap; }
 .waitlist-days { font-weight: 700; white-space: nowrap; }
-.waitlist-badge { display: inline-block; padding: .13rem .5rem; border-radius: 999px; font-size: .68rem; font-weight: 650; white-space: nowrap; }
-.waitlist-badge.high { color: #d0213a; background: #fce8ec; }
-.waitlist-badge.medium { color: #9a7b0a; background: #fdf6dc; }
-.waitlist-badge.low { color: #4e9f2f; background: #ebf7e6; }
-.waitlist-badge.empty { color: var(--muted); background: transparent; padding-inline: 0; }
+.waitlist-position { width: 4.5rem; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.waitlist-type { display: inline-block; padding: .1rem .5rem; color: #0577a8; background: #e7f4f8; border-radius: 999px; font-size: .68rem; font-weight: 650; }
 .actions-heading { text-align: right; }
 .waitlist-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; white-space: nowrap; }
 .allocate-button {
@@ -362,6 +361,7 @@ tr:last-child td { border-bottom: 0; }
 .modal-body .field input, .modal-body .field select, .modal-body textarea { min-height: 2.4rem; font-size: .85rem; }
 .modal-body textarea { width: 100%; min-height: 7rem; padding: .65rem .8rem; border: 1px solid var(--border); border-radius: .7rem; resize: vertical; font: inherit; }
 .modal-hint { font-size: .8rem !important; }
+.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
 .modal-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; padding: .85rem 1.25rem; border-top: 1px solid var(--border); }
 .modal-footer .back-button, .modal-footer .primary-button, .confirm-allocation { min-height: 2.25rem; padding: .35rem .8rem; border-radius: .6rem; font-size: .8rem; }
 .modal-footer .primary-button { width: auto; }
@@ -391,6 +391,7 @@ tr:last-child td { border-bottom: 0; }
   .page-heading { align-items: flex-start; flex-direction: column; }
   .current-page { display: none; }
   .waitlist-filters { align-items: center; flex-direction: row; }
+  .waitlist-search, .waitlist-search input { width: 100%; }
 }
 @media (max-width: 420px) {
   .form-grid { grid-template-columns: 1fr; }

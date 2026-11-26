@@ -189,15 +189,13 @@ interface TeamMember {
 
 interface WaitingPatient {
   id: string;
-  dataEntrada?: string | null;
+  posicao: number;
+  dataEntrada: string;
   tipoPaciente: 'beneficiario' | 'tea';
-  pacienteId: number | string;
+  pacienteId: string;
+  numeroCadastro: string | null;
   nome: string;
-  dataNascimento?: string | null;
-  responsavel?: string | null;
-  suspeitaDiagnostica?: string | null;
-  prioridade?: string | null;
-  vulnerabilidade?: string | null;
+  dataNascimento: string | null;
 }
 
 interface WaitlistProfessional {
@@ -207,18 +205,24 @@ interface WaitlistProfessional {
   horario_fim: string | null;
 }
 
-type WaitlistFilter = 'all' | 'high-priority' | 'over-30-days';
-function daysWaiting(dataEntrada?: string | null): number | null {
-  if (!dataEntrada) return null;
+type PatientType = 'all' | WaitingPatient['tipoPaciente'];
+
+const patientTypes: Record<WaitingPatient['tipoPaciente'], string> = {
+  beneficiario: 'Aprendizagem',
+  tea: 'TEA',
+};
+
+// Os mesmos tipos aceitos pelo backend em POST /atendimentos
+const appointmentTypes = [
+  { value: 'psicologia', label: 'Psicologia' },
+  { value: 'terapia ocupacional', label: 'Terapia ocupacional' },
+  { value: 'pedagogia', label: 'Pedagogia' },
+];
+
+function daysWaiting(dataEntrada: string): number | null {
   const enteredAt = new Date(dataEntrada).getTime();
   if (!Number.isFinite(enteredAt)) return null;
   return Math.max(0, Math.floor((Date.now() - enteredAt) / 86400000));
-}
-
-function isOverThirtyDays(dataEntrada?: string | null): boolean {
-  if (!dataEntrada) return false;
-  const enteredAt = new Date(dataEntrada).getTime();
-  return Number.isFinite(enteredAt) && Date.now() - enteredAt > 30 * 86400000;
 }
 
 function patientAge(dataNascimento?: string | null): number | null {
@@ -231,34 +235,39 @@ function patientAge(dataNascimento?: string | null): number | null {
   return age >= 0 ? age : null;
 }
 
-function normalizedBadge(value?: string | null): { label: string; tone: string } {
-  const label = value?.trim();
-  if (!label) return { label: '—', tone: 'empty' };
-  const normalized = label.toLocaleLowerCase('pt-BR');
-  if (normalized === 'alta' || normalized === 'alta prioridade') return { label: 'Alta', tone: 'high' };
-  if (normalized === 'média' || normalized === 'media') return { label: 'Média', tone: 'medium' };
-  if (normalized === 'baixa') return { label: 'Baixa', tone: 'low' };
-  return { label, tone: 'empty' };
+// Data de hoje no formato AAAA-MM-DD, para o mínimo do campo de data
+function todayIso() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function isHighPriority(patient: WaitingPatient) {
-  return normalizedBadge(patient.prioridade).tone === 'high';
+function workingHours(professional: WaitlistProfessional) {
+  if (!professional.horario_inicio || !professional.horario_fim) return 'sem horário cadastrado';
+  return `${professional.horario_inicio.slice(0, 5)}–${professional.horario_fim.slice(0, 5)}`;
 }
 
-function Waitlist({ token, onExpired }: DataAccess) {
-  const [filter, setFilter] = useState<WaitlistFilter>('all');
+function Waitlist({ token, onExpired, canManage }: DataAccess & { canManage: boolean }) {
+  const [patientType, setPatientType] = useState<PatientType>('all');
+  const [overThirtyDays, setOverThirtyDays] = useState(false);
+  const [search, setSearch] = useState('');
   const [revision, setRevision] = useState(0);
   const [patients, setPatients] = useState<WaitingPatient[]>();
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState('');
+  const [pending, setPending] = useState(false);
+
   const [allocating, setAllocating] = useState<WaitingPatient | null>(null);
   const [professionals, setProfessionals] = useState<WaitlistProfessional[]>();
   const [professionalError, setProfessionalError] = useState('');
   const [professionalId, setProfessionalId] = useState('');
+  const [appointmentType, setAppointmentType] = useState('');
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState('');
+  const [allocationError, setAllocationError] = useState('');
+
   const [removing, setRemoving] = useState<WaitingPatient | null>(null);
   const [reason, setReason] = useState('');
   const [removalError, setRemovalError] = useState('');
-  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -274,10 +283,10 @@ function Waitlist({ token, onExpired }: DataAccess) {
     return () => { active = false; };
   }, [token, onExpired, revision]);
 
+  // A lista de profissionais só é carregada uma vez, ao abrir o primeiro agendamento
   useEffect(() => {
-    if (!allocating) return;
+    if (!allocating || professionals) return;
     let active = true;
-    setProfessionals(undefined);
     setProfessionalError('');
     void api<WaitlistProfessional[]>('/profissionais', { token })
       .then((data) => { if (active) setProfessionals(data); })
@@ -287,7 +296,39 @@ function Waitlist({ token, onExpired }: DataAccess) {
         else setProfessionalError(failure instanceof Error ? failure.message : 'Não foi possível carregar os profissionais.');
       });
     return () => { active = false; };
-  }, [allocating, token, onExpired]);
+  }, [allocating, professionals, token, onExpired]);
+
+  // "Alocar vaga" agenda o primeiro atendimento: o backend retira o paciente da fila na mesma operação (RN29)
+  async function allocatePatient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!allocating) return;
+    setPending(true);
+    setAllocationError('');
+    const isTea = allocating.tipoPaciente === 'tea';
+    try {
+      await api('/atendimentos', {
+        token,
+        body: {
+          pacienteId: isTea ? allocating.pacienteId : Number(allocating.pacienteId),
+          isTea,
+          profissionalId: professionalId,
+          // Horário de Recife (UTC-3, sem horário de verão)
+          dataInicio: `${appointmentDate}T${appointmentTime}:00-03:00`,
+          tipo: appointmentType,
+        },
+      });
+      const professional = professionals?.find(({ id }) => id === professionalId);
+      const [year, month, day] = appointmentDate.split('-');
+      setAllocating(null);
+      setNotice(`Atendimento de ${allocating.nome} agendado para ${day}/${month}/${year} às ${appointmentTime}${professional ? ` com ${professional.nome_completo}` : ''}. A família saiu da lista de espera.`);
+      setRevision((current) => current + 1);
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 401) onExpired();
+      else setAllocationError(failure instanceof Error ? failure.message : 'Não foi possível agendar o atendimento.');
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function removePatient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,13 +351,24 @@ function Waitlist({ token, onExpired }: DataAccess) {
 
   function openAllocation(patient: WaitingPatient) {
     setNotice('');
+    setAllocationError('');
     setProfessionalId('');
+    setAppointmentType('');
+    setAppointmentDate('');
+    setAppointmentTime('');
     setAllocating(patient);
   }
 
   function closeAllocation() {
     if (pending) return;
     setAllocating(null);
+  }
+
+  function openRemoval(patient: WaitingPatient) {
+    setNotice('');
+    setRemovalError('');
+    setReason('');
+    setRemoving(patient);
   }
 
   function closeRemoval() {
@@ -326,13 +378,13 @@ function Waitlist({ token, onExpired }: DataAccess) {
     setRemovalError('');
   }
 
-  const hasPriorityData = Boolean(patients?.some((patient) => patient.prioridade?.trim()));
+  const searchTerm = search.trim().toLocaleLowerCase('pt-BR');
   const filteredPatients = patients?.filter((patient) => {
-    if (filter === 'high-priority') return isHighPriority(patient);
-    if (filter === 'over-30-days') return isOverThirtyDays(patient.dataEntrada);
-    return true;
+    if (patientType !== 'all' && patient.tipoPaciente !== patientType) return false;
+    if (overThirtyDays && (daysWaiting(patient.dataEntrada) ?? 0) <= 30) return false;
+    return !searchTerm || patient.nome.toLocaleLowerCase('pt-BR').includes(searchTerm);
   });
-  const allocatedPatientAge = allocating ? patientAge(allocating.dataNascimento) : null;
+  const canSchedule = Boolean(professionalId && appointmentType && appointmentDate && appointmentTime);
 
   return <>
     <header className="page-heading waitlist-heading">
@@ -344,76 +396,92 @@ function Waitlist({ token, onExpired }: DataAccess) {
       </div>
     </header>
     {notice && <p className="notice success waitlist-notice" role="status">{notice}</p>}
-    <div className="waitlist-filters" role="group" aria-label="Filtros da lista de espera">
-      <button type="button" className={`waitlist-filter${filter === 'all' ? ' active' : ''}`} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>Todos</button>
-      <span className="waitlist-filter-tooltip" title={!hasPriorityData ? 'O backend não retorna prioridade para os itens da fila.' : undefined}>
-        <button type="button" className={`waitlist-filter${filter === 'high-priority' ? ' active' : ''}`} aria-pressed={filter === 'high-priority'} disabled={!hasPriorityData} aria-label={!hasPriorityData ? 'Alta Prioridade (indisponível: o backend não retorna prioridade)' : undefined} onClick={() => setFilter('high-priority')}>Alta Prioridade</button>
-      </span>
-      <button type="button" className={`waitlist-filter${filter === 'over-30-days' ? ' active' : ''}`} aria-pressed={filter === 'over-30-days'} onClick={() => setFilter('over-30-days')}>+30 dias</button>
+    <div className="waitlist-toolbar">
+      <div className="waitlist-filters" role="group" aria-label="Filtros da lista de espera">
+        {(['all', 'beneficiario', 'tea'] as const).map((type) => <button key={type} type="button"
+          className={`waitlist-filter${patientType === type ? ' active' : ''}`} aria-pressed={patientType === type}
+          onClick={() => setPatientType(type)}>{type === 'all' ? 'Todos' : patientTypes[type]}</button>)}
+        <button type="button" className={`waitlist-filter${overThirtyDays ? ' active' : ''}`} aria-pressed={overThirtyDays}
+          onClick={() => setOverThirtyDays((current) => !current)}>+30 dias</button>
+      </div>
+      <label className="waitlist-search">
+        <span className="sr-only">Buscar por nome</span>
+        <input type="search" placeholder="Buscar por nome" value={search} onChange={(event) => setSearch(event.target.value)} />
+      </label>
     </div>
     <section className="panel waitlist-panel" aria-label="Famílias aguardando alocação">
       {loadError ? <>
         <p className="notice error" role="alert">{loadError}</p>
         <button type="button" className="text-button" onClick={() => setRevision((current) => current + 1)}>Tentar novamente</button>
       </> : !patients ? <p className="waitlist-state" role="status">Carregando lista de espera…</p>
-        : !filteredPatients?.length ? <p className="waitlist-state" role="status">{patients.length ? 'Nenhuma família corresponde a este filtro.' : 'Nenhuma família encontrada na lista de espera.'}</p>
+        : !filteredPatients?.length ? <p className="waitlist-state" role="status">{patients.length ? 'Nenhuma família corresponde a estes filtros.' : 'Nenhuma família encontrada na lista de espera.'}</p>
           : <div className="table-scroll waitlist-table"><table>
             <thead><tr>
-              <th scope="col">Criança</th><th scope="col">Suspeita diagnóstica</th><th scope="col">Espera</th>
-              <th scope="col">Prioridade</th><th scope="col">Vulnerabilidade</th><th scope="col" className="actions-heading">Ações</th>
+              <th scope="col">Posição</th><th scope="col">Criança</th><th scope="col">Cadastro</th>
+              <th scope="col">Espera</th>{canManage && <th scope="col" className="actions-heading">Ações</th>}
             </tr></thead>
             <tbody>{filteredPatients.map((patient) => {
-              const priority = normalizedBadge(patient.prioridade);
-              const vulnerability = normalizedBadge(patient.vulnerabilidade);
               const waitingDays = daysWaiting(patient.dataEntrada);
+              const age = patientAge(patient.dataNascimento);
               return <tr key={patient.id}>
+                <td className="waitlist-position">{patient.posicao}º</td>
                 <td className="waitlist-child">
-                  <strong>{patient.nome || '—'}</strong>
-                  <small>{patientAge(patient.dataNascimento) ?? '—'} anos · resp. {patient.responsavel?.trim() || '—'}</small>
+                  <strong>{patient.nome}</strong>
+                  <small>{age === null ? 'Idade não informada' : `${age} ${age === 1 ? 'ano' : 'anos'}`}</small>
                 </td>
-                <td>{patient.suspeitaDiagnostica?.trim() || '—'}</td>
-                <td className="waitlist-days">{waitingDays === null ? '—' : `${waitingDays}d`}</td>
-                <td><span className={`waitlist-badge ${priority.tone}`}>{priority.label}</span></td>
-                <td><span className={`waitlist-badge ${vulnerability.tone}`}>{vulnerability.label}</span></td>
-                <td className="waitlist-actions">
+                <td className="waitlist-child">
+                  <span className="waitlist-type">{patientTypes[patient.tipoPaciente]}</span>
+                  <small>Nº {patient.numeroCadastro ?? '—'}</small>
+                </td>
+                <td className="waitlist-days">{waitingDays === null ? '—' : `${waitingDays} ${waitingDays === 1 ? 'dia' : 'dias'}`}</td>
+                {canManage && <td><div className="waitlist-actions">
                   <button className="allocate-button" type="button" onClick={() => openAllocation(patient)}><CalendarCheck size={15} aria-hidden="true" /> Alocar Vaga</button>
-                  <button className="waitlist-trash" type="button" aria-label="Retirar da fila" title="Retirar da fila" onClick={() => {
-                    setNotice('');
-                    setRemovalError('');
-                    setReason('');
-                    setRemoving(patient);
-                  }}><Trash2 size={16} aria-hidden="true" /></button>
-                </td>
+                  <button className="waitlist-trash" type="button" aria-label={`Retirar ${patient.nome} da fila`} title="Retirar da fila" onClick={() => openRemoval(patient)}><Trash2 size={16} aria-hidden="true" /></button>
+                </div></td>}
               </tr>;
             })}</tbody>
           </table></div>}
     </section>
     {allocating && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeAllocation(); }}>
-      <div className="modal-card allocation-modal" role="dialog" aria-modal="true" aria-labelledby="allocation-title">
+      <form className="modal-card allocation-modal" onSubmit={allocatePatient} role="dialog" aria-modal="true" aria-labelledby="allocation-title">
         <header className="modal-header">
           <h2 id="allocation-title">Alocar Vaga</h2>
           <button className="modal-close" type="button" aria-label="Fechar" disabled={pending} onClick={closeAllocation}><X size={20} aria-hidden="true" /></button>
         </header>
         <div className="modal-body">
-          <p><strong>{allocating.nome}</strong> será movido(a) da fila de espera para a agenda de atendimento ativo.</p>
+          <p>Agende o primeiro atendimento de <strong>{allocating.nome}</strong>. Ao confirmar, a família sai da lista de espera.</p>
           <label className="field"><span>Profissional responsável</span>
-            <select value={professionalId} onChange={(event) => setProfessionalId(event.target.value)} disabled={!professionals?.length}>
-              <option value="">Selecione um profissional</option>
-              {professionals?.map((professional) => <option key={professional.id} value={professional.id}>{professional.nome_completo}</option>)}
+            <select required value={professionalId} onChange={(event) => setProfessionalId(event.target.value)} disabled={pending || !professionals?.length}>
+              <option value="">{professionals ? 'Selecione um profissional' : 'Carregando profissionais…'}</option>
+              {professionals?.map((professional) => <option key={professional.id} value={professional.id}>{professional.nome_completo} ({workingHours(professional)})</option>)}
             </select>
           </label>
-          {!professionals && !professionalError && <p className="modal-hint" role="status">Carregando profissionais…</p>}
           {professionals && !professionals.length && <p className="modal-hint" role="status">Nenhum profissional ativo está disponível.</p>}
           {professionalError && <p className="notice error" role="alert">{professionalError}</p>}
-          <p className="notice error" role="status">A aloca??o ainda n?o pode ser salva: o backend precisa oferecer suporte para registrar o profissional respons?vel sem criar um atendimento.</p>
+          <label className="field"><span>Tipo de atendimento</span>
+            <select required value={appointmentType} onChange={(event) => setAppointmentType(event.target.value)} disabled={pending}>
+              <option value="">Selecione o tipo</option>
+              {appointmentTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <div className="modal-row">
+            <label className="field"><span>Data</span>
+              <input type="date" required min={todayIso()} value={appointmentDate} onChange={(event) => setAppointmentDate(event.target.value)} disabled={pending} />
+            </label>
+            <label className="field"><span>Horário</span>
+              <input type="time" required value={appointmentTime} onChange={(event) => setAppointmentTime(event.target.value)} disabled={pending} />
+            </label>
+          </div>
+          <p className="modal-hint">Cada atendimento dura 20 minutos e precisa caber no horário do profissional.</p>
+          {allocationError && <p className="notice error" role="alert">{allocationError}</p>}
         </div>
         <footer className="modal-footer">
           <button className="back-button" type="button" disabled={pending} onClick={closeAllocation}>Cancelar</button>
-          <button className="confirm-allocation" type="button" disabled title="Aguardando suporte para persistir aloca??es no backend">
-            {pending ? 'Confirmando…' : 'Confirmar Alocação'}
+          <button className="confirm-allocation" type="submit" disabled={pending || !canSchedule}>
+            {pending ? 'Agendando…' : 'Confirmar Alocação'}
           </button>
         </footer>
-      </div>
+      </form>
     </div>}
     {removing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeRemoval(); }}>
       <form className="modal-card removal-modal" onSubmit={removePatient} role="dialog" aria-modal="true" aria-labelledby="remove-title">
@@ -508,7 +576,7 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
       <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} />} />
       {[overview[2], operations[0]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
-      <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} />} />
+      <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
       <Route element={session?.profissional.areaAtuacao === 'coordenacao_administrativa' ? <Outlet /> : home}>
         <Route path="/equipe" element={<Team {...dataAccess} />} />
         {[management[0], management[2]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
