@@ -1,7 +1,10 @@
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from 'react';
-import { api, ApiError, areas, type Area } from './api';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api, ApiError, areas, type Area, type Session } from './api';
 import { formatCpf } from './AuthPages';
+import { CadastroTea } from './CadastroTea';
+import { DiagnosticoTeaDialog, teaEndpoint, type PacienteTea } from './PacientesTea';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 import { WorkspaceDialog, type Notification } from './WorkspaceFeedback';
 
@@ -428,30 +431,81 @@ function BeneficiaryHistory({ token, onExpired, person, onClose }: DataAccess & 
   </WorkspaceDialog>;
 }
 
-// canRemove: só a coordenação exclui cadastros (excluir também tira o paciente da lista de espera)
-export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAccess & {
-  onNotify: (notification: Notification) => void; canRemove: boolean;
+const patientFilters = [
+  { value: 'todos', label: 'Todos', link: '/beneficiarios' },
+  { value: 'aprendizagem', label: 'Aprendizagem', link: '?tipo=aprendizagem' },
+  { value: 'tea', label: 'Pacientes TEA', link: '?tipo=tea' },
+] as const;
+
+function patientRows(learning: Beneficiario[], tea: PacienteTea[]) {
+  return [
+    ...learning.map((patient) => ({
+      kind: 'aprendizagem' as const, patient, name: patient.nomeBeneficiario, number: patient.numeroCadastro,
+      date: dateOnly(patient.dataCadastro), detail: patient.possuiDeficit ? complaintLabel(patient.queixa) : '—',
+    })),
+    ...tea.map((patient) => ({
+      kind: 'tea' as const, patient, name: patient.nome_completo, number: String(patient.numero_cadastro),
+      date: patient.data_cadastro.slice(0, 10), detail: `Nível ${patient.nivel_suporte}`,
+    })),
+  ];
+}
+
+export function Beneficiarios({ token, onExpired, onNotify, professional }: DataAccess & {
+  onNotify: (notification: Notification) => void; professional: Session['profissional'];
 }) {
+  const [params, setParams] = useSearchParams();
+  const type = params.get('tipo');
+  const filter = type === 'tea' || type === 'aprendizagem' ? type : 'todos';
+  const registration = params.get('cadastro');
+  const creating = registration === 'beneficiario';
+  const creatingTea = registration === 'tea';
+  const canRemove = professional.areaAtuacao === 'coordenacao_administrativa';
   const [query, setQuery] = useState('');
-  const [action, setAction] = useState<Action>();
+  const [selectedAction, setAction] = useState<Exclude<Action, { type: 'create' }>>();
+  const [editingTea, setEditingTea] = useState<PacienteTea>();
+  const action: Action | undefined = creating ? { type: 'create' } : selectedAction;
   const [pending, setPending] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const newButton = useRef<HTMLButtonElement>(null);
-  const { records, error, reload } = useRecords<Beneficiario>(endpoint, token, onExpired);
+  const newButton = useRef<HTMLAnchorElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const learning = useRecords<Beneficiario>(filter === 'tea' ? null : endpoint, token, onExpired);
+  const tea = useRecords<PacienteTea>(filter === 'aprendizagem' ? null : teaEndpoint, token, onExpired);
 
   const today = calendar.format(new Date());
   const search = normalize(query);
-  const filtered = records?.filter((person) =>
-    [person.nomeBeneficiario, person.numeroCadastro, String(person.id), person.queixa ?? '']
-      .some((value) => normalize(value).includes(search)));
+  const rows = patientRows(filter === 'tea' ? [] : learning.records ?? [], filter === 'aprendizagem' ? [] : tea.records ?? []);
+  if (filter === 'todos') rows.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name, 'pt-BR'));
+  const filtered = rows.filter(({ kind, patient, name, number, detail }) =>
+    [name, number, detail, kind === 'aprendizagem' ? String(patient.id) : ''].some((value) => normalize(value).includes(search)));
+  const loading = (filter !== 'tea' && !learning.records && !learning.error)
+    || (filter !== 'aprendizagem' && !tea.records && !tea.error);
+  const learningError = filter !== 'tea' && learning.error;
+  const teaError = filter !== 'aprendizagem' && tea.error;
 
-  function open(next: Action) {
+  function open(next: Exclude<Action, { type: 'create' }>) {
     setSaveError('');
     setAction(next);
   }
 
+  function closeRegistration(savedType?: 'aprendizagem' | 'tea') {
+    const next = new URLSearchParams(params);
+    next.delete('cadastro');
+    if (savedType && filter !== 'todos' && filter !== savedType) next.set('tipo', savedType);
+    setParams(next, { replace: true });
+    requestAnimationFrame(() => newButton.current?.focus());
+  }
+
   function close() {
     setAction(undefined);
+    setSaveError('');
+    if (creating) closeRegistration();
+  }
+
+  function finishTeaRegistration(registrationNumber: number) {
+    onNotify({ message: `Cadastro TEA nº ${registrationNumber} realizado com sucesso`, tone: 'success' });
+    setQuery('');
+    tea.reload();
+    closeRegistration('tea');
   }
 
   async function save(body?: object) {
@@ -470,9 +524,12 @@ export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAcc
         await api<void>(`${endpoint}/${action.person.id}`, { token, method: 'DELETE' });
         onNotify({ message: 'Cadastro excluído', tone: 'danger' });
       }
-      close();
-      reload();
-      requestAnimationFrame(() => newButton.current?.focus());
+      if (action.type === 'create') closeRegistration('aprendizagem');
+      else {
+        close();
+        requestAnimationFrame(() => newButton.current?.focus());
+      }
+      learning.reload();
     } catch (failure) {
       if (failure instanceof ApiError && failure.status === 401) onExpired();
       else setSaveError(failure instanceof Error ? failure.message : 'Não foi possível concluir a operação.');
@@ -481,46 +538,58 @@ export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAcc
     }
   }
 
-  const count = records?.length;
+  const count = loading || learningError || teaError ? undefined : rows.length;
   return <section className="beneficiaries">
     <PageHeader title="Beneficiários" description={count === undefined ? 'Cadastros de pacientes' :
-      count === 1 ? '1 beneficiário cadastrado' : `${count} beneficiários cadastrados`}
-      action={<button ref={newButton} className="primary-button" type="button" onClick={() => open({ type: 'create' })}>
+      count === 1 ? '1 paciente cadastrado' : `${count} pacientes cadastrados`}
+      action={<Link ref={newButton} className="primary-button" to={`/beneficiarios/novo${filter === 'todos' ? '' : `?tipo=${filter}`}`}>
         <Plus size={19} aria-hidden="true" /> Novo Cadastro
-      </button>} />
+      </Link>} />
+    <nav className="beneficiary-categories" aria-label="Tipo de cadastro">
+      {patientFilters.map(({ value, label, link }) => <Link key={value} to={link}
+        aria-current={filter === value ? 'page' : undefined}>{label}</Link>)}
+    </nav>
     <div className="beneficiary-filters">
-      <label className="field beneficiary-search"><span className="sr-only">Buscar beneficiários</span>
+      <label className="field beneficiary-search"><span className="sr-only">Buscar pacientes</span>
         <span className="search-field"><Search size={18} aria-hidden="true" />
-          <input type="search" value={query} placeholder="Buscar por nome, ID ou queixa..." onChange={(event) => setQuery(event.target.value)} />
+          <input ref={searchInput} type="search" value={query} placeholder="Buscar por nome, cadastro ou queixa..." onChange={(event) => setQuery(event.target.value)} />
         </span>
       </label>
     </div>
-    {error ? <div className="panel"><p className="notice error" role="alert">{error}</p>
-      <button type="button" className="text-button" onClick={reload}>Tentar novamente</button></div>
-      : !filtered ? <p className="team-message" role="status">Carregando beneficiários…</p>
-      : !filtered.length ? <p className="team-message" role="status">Nenhum beneficiário encontrado.</p>
-      : <div className="table-scroll beneficiary-table">
-        <table aria-label="Beneficiários cadastrados">
-          <thead><tr><th scope="col">ID</th><th scope="col">Paciente</th><th scope="col">Queixa de aprendizado</th>
-            <th scope="col">Data de cadastro</th><th scope="col">Ações</th></tr></thead>
-          <tbody>{filtered.map((person) => {
-            const age = ageAt(person.dataNascimento, today);
-            return <tr key={person.id}>
-              <td className="beneficiary-id">{person.numeroCadastro}</td>
-              <th scope="row">{person.nomeBeneficiario}{age !== undefined && <small>{age} {age === 1 ? 'ano' : 'anos'}</small>}</th>
-              <td>{person.possuiDeficit ? complaintLabel(person.queixa) : '—'}</td>
-              <td>{displayDate(person.dataCadastro) || '—'}</td>
-              <td><div className="beneficiary-actions">
-                <button type="button" className="text-button" onClick={() => open({ type: 'history', person })}>Ver Prontuário</button>
-                <button type="button" className="icon-button" aria-label={`Editar cadastro de ${person.nomeBeneficiario}`}
-                  onClick={() => open({ type: 'edit', person })}><Pencil size={18} aria-hidden="true" /></button>
-                {canRemove && <button type="button" className="icon-button professional-remove" aria-label={`Excluir cadastro de ${person.nomeBeneficiario}`}
-                  onClick={() => open({ type: 'remove', person })}><Trash2 size={18} aria-hidden="true" /></button>}
-              </div></td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div>}
+    {learningError && <div className="panel beneficiary-load-error"><p className="notice error" role="alert">Cadastros de aprendizagem: {learningError}</p>
+      <button type="button" className="text-button" onClick={learning.reload}>Tentar carregar Aprendizagem novamente</button></div>}
+    {teaError && <div className="panel beneficiary-load-error"><p className="notice error" role="alert">Cadastros TEA: {teaError}</p>
+      <button type="button" className="text-button" onClick={tea.reload}>Tentar carregar pacientes TEA novamente</button></div>}
+    {loading && <p className="team-message" role="status">Carregando pacientes…</p>}
+    {!loading && !filtered.length && !learningError && !teaError && <p className="team-message" role="status">Nenhum paciente encontrado.</p>}
+    {!!filtered.length && <div className="table-scroll beneficiary-table" role="region" aria-label="Lista de pacientes" tabIndex={0}>
+      <table aria-label="Pacientes cadastrados">
+        <thead><tr><th scope="col">Nº de cadastro</th><th scope="col">Paciente</th><th scope="col">Tipo de cadastro</th><th scope="col">Queixa ou nível de suporte</th>
+          <th scope="col">Data de cadastro</th><th scope="col">Ações</th></tr></thead>
+        <tbody>{filtered.map(({ kind, patient, name, number, date, detail }) => {
+          const age = kind === 'aprendizagem' ? ageAt(patient.dataNascimento, today) : undefined;
+          return <tr key={`${kind}-${patient.id}`}>
+            <td className="beneficiary-id">{number}</td>
+            <th scope="row">{name}{age !== undefined && <small>{age} {age === 1 ? 'ano' : 'anos'}</small>}
+              {kind === 'tea' && patient.aguarda_diagnostico && <small>Aguarda diagnóstico</small>}</th>
+            <td>{kind === 'tea' ? 'TEA' : 'Aprendizagem'}</td>
+            <td>{detail}</td>
+            <td>{date ? <time dateTime={date}>{date.split('-').reverse().join('/')}</time> : '—'}</td>
+            <td><div className="beneficiary-actions">{kind === 'tea'
+              ? <button type="button" className="text-button" onClick={() => setEditingTea(patient)}
+                aria-label={`Editar diagnóstico de ${name}`}>Editar diagnóstico</button>
+              : <>
+                <button type="button" className="text-button" onClick={() => open({ type: 'history', person: patient })}>Ver Prontuário</button>
+                <button type="button" className="icon-button" aria-label={`Editar cadastro de ${name}`}
+                  onClick={() => open({ type: 'edit', person: patient })}><Pencil size={18} aria-hidden="true" /></button>
+                {canRemove && <button type="button" className="icon-button professional-remove" aria-label={`Excluir cadastro de ${name}`}
+                  onClick={() => open({ type: 'remove', person: patient })}><Trash2 size={18} aria-hidden="true" /></button>}
+              </>}
+            </div></td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>}
     {canRemove && action?.type === 'remove' && <WorkspaceDialog title="Excluir cadastro" size="compact" pending={pending} onClose={close}>
       <div className="workspace-dialog-content workspace-remove-content">
         <p>Deseja excluir o cadastro de <strong>{action.person.nomeBeneficiario}</strong>? O cadastro será desativado.</p>
@@ -536,5 +605,14 @@ export function Beneficiarios({ token, onExpired, onNotify, canRemove }: DataAcc
     {action?.type === 'history' && <BeneficiaryHistory token={token} onExpired={onExpired} person={action.person} onClose={close} />}
     {(action?.type === 'create' || action?.type === 'edit') && <BeneficiaryForm person={action.type === 'edit' ? action.person : undefined}
       pending={pending} error={saveError} onError={setSaveError} onSave={(body) => void save(body)} onCancel={close} />}
+    {creatingTea && <CadastroTea token={token} onExpired={onExpired} person={professional}
+      onClose={() => closeRegistration()} onSaved={finishTeaRegistration} />}
+    {editingTea && <DiagnosticoTeaDialog patient={editingTea} token={token} onExpired={onExpired}
+      onClose={() => setEditingTea(undefined)} onSaved={() => {
+        setEditingTea(undefined);
+        tea.reload();
+        onNotify({ message: 'Informações de diagnóstico atualizadas', tone: 'success' });
+        requestAnimationFrame(() => searchInput.current?.focus());
+      }} />}
   </section>;
 }

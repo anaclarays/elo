@@ -1,6 +1,6 @@
 import {
   CalendarCheck, CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, Users, UserRoundCog, X,
+  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Trash2, Users, UserRoundCog, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -8,6 +8,8 @@ import { api, ApiError, areas, expiration, type Session } from './api';
 import { Agenda } from './Agenda';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
+import { EscolhaCadastro } from './CadastroTea';
+import { Relatorios } from './Relatorios';
 import { Team } from './Team';
 import { WorkspaceNotification, type Notification } from './WorkspaceFeedback';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
@@ -23,7 +25,6 @@ const operations = [
 const management = [
   { label: 'Relatórios & Indicadores', path: '/relatorios-indicadores', Icon: ChartNoAxesColumnIncreasing },
   { label: 'Equipe', path: '/equipe', Icon: UserRoundCog },
-  { label: 'Configurações & LGPD', path: '/configuracoes-lgpd', Icon: ShieldCheck },
 ];
 const navigation = [...overview, ...operations, ...management];
 const sessionKey = 'elo.web.session';
@@ -53,6 +54,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('elo.web.sidebar-collapsed') === 'true');
   const [profileOpen, setProfileOpen] = useState(false);
   const [teamQuery, setTeamQuery] = useState('');
+  const [reportQuery, setReportQuery] = useState('');
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLElement>(null);
@@ -62,12 +64,15 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
   const person = session.profissional;
   const admin = person.areaAtuacao === 'coordenacao_administrativa';
   const isTeam = admin && location.pathname === '/equipe';
-  const page = navigation.find((item) => item.path === location.pathname);
+  const isReports = admin && location.pathname === management[0].path;
+  const searchLabel = isReports ? 'Buscar pacientes ou profissionais' : 'Buscar profissionais';
+  const page = navigation.find(({ path }) => location.pathname === path || location.pathname.startsWith(`${path}/`));
   const initials = person.nomeCompleto.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
     setMobileOpen(false);
     setProfileOpen(false);
+    setReportQuery('');
   }, [location.pathname]);
 
   useEffect(() => {
@@ -139,9 +144,9 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
         </button>
         <button ref={menuButton} className="icon-button open-drawer" type="button" aria-controls="sidebar"
           aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu size={22} /></button>
-        {isTeam ? <label className="field team-search"><span className="sr-only">Buscar profissionais</span>
-          <span className="search-field"><Search size={19} aria-hidden="true" /><input type="search" value={teamQuery}
-            placeholder="Buscar profissionais..." onChange={(event) => setTeamQuery(event.target.value)} /></span>
+        {isTeam || isReports ? <label className="field team-search"><span className="sr-only">{searchLabel}</span>
+          <span className="search-field"><Search size={19} aria-hidden="true" /><input type="search" value={isReports ? reportQuery : teamQuery}
+            placeholder={`${searchLabel}...`} onChange={(event) => (isReports ? setReportQuery : setTeamQuery)(event.target.value)} /></span>
         </label> : <span className="current-page">{page?.label}</span>}
         <div className="profile" ref={profile}>
           <button className="profile-button" type="button" aria-label="Opções da conta" aria-expanded={profileOpen}
@@ -156,7 +161,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
           </div>}
         </div>
       </header>
-      <main className="main-content" ref={content} id="conteudo" tabIndex={-1}><Outlet context={teamQuery} /></main>
+      <main className="main-content" ref={content} id="conteudo" tabIndex={-1}><Outlet context={isReports ? reportQuery : teamQuery} /></main>
     </div>
   </div>;
 }
@@ -558,15 +563,18 @@ export default function App() {
       <Route path="/redefinir-senha" element={<ResetPassword />} />
       <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
-        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
-          canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
+        <Route path="/beneficiarios" element={session
+          ? <Beneficiarios {...dataAccess} onNotify={setNotification} professional={session.profissional} /> : login} />
+        <Route path="/beneficiarios/novo" element={<EscolhaCadastro />} />
+        <Route path="/beneficiarios/novo/tea" element={<Navigate to="/beneficiarios?cadastro=tea" replace />} />
         <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
           ? <Team {...dataAccess} onNotify={setNotification} /> : home} />
-        <Route element={session?.profissional.areaAtuacao === 'coordenacao_administrativa' ? <Outlet /> : home}>
-          {[management[0], management[2]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
-        </Route>
+        <Route path={management[0].path} element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
+          ? <Relatorios {...dataAccess} /> : home} />
+        <Route path="/configuracoes-lgpd" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
+          ? <PendingModule title="Configurações & LGPD" /> : home} />
       </Route>
       <Route path="*" element={session ? home : login} />
     </Routes>
