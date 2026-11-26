@@ -312,6 +312,31 @@ describe('AtendimentosService', () => {
       expect(repository.create).not.toHaveBeenCalled();
     });
 
+    it('rejeita profissional com status "Inativo" na equipe', async () => {
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: '08:00',
+        horario_fim: '17:00',
+        ativo: true,
+        status: ' Inativo ',
+      });
+
+      await expect(service.create(createDto)).rejects.toThrow(
+        new BadRequestException('O profissional informado está inativo.'),
+      );
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('aceita profissional com status "Ativo"', async () => {
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: '08:00',
+        horario_fim: '17:00',
+        ativo: true,
+        status: 'Ativo',
+      });
+
+      await expect(service.create(createDto)).resolves.toBeDefined();
+    });
+
     it('rejeita profissional sem horário de atendimento cadastrado', async () => {
       profissionaisService.findOne.mockResolvedValue({
         horario_inicio: null,
@@ -593,6 +618,23 @@ describe('AtendimentosService', () => {
         horario_inicio: '08:00',
         horario_fim: '17:00',
         ativo: false,
+      });
+
+      await expect(
+        service.update(atendimentoId, {
+          profissionalId: 'c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('rejeita trocar para um profissional com status "Inativo"', async () => {
+      repository.findOne.mockResolvedValue(atendimento);
+      profissionaisService.findOne.mockResolvedValue({
+        horario_inicio: '08:00',
+        horario_fim: '17:00',
+        ativo: true,
+        status: 'inativo',
       });
 
       await expect(

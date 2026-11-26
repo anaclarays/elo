@@ -173,7 +173,10 @@ export class AtendimentosService {
       dto.profissionalId,
     );
 
-    if (profissional.ativo === false) {
+    // Inativo = removido da equipe (ativo false) ou marcado como "Inativo" na tela de Equipe
+    const statusInativo =
+      profissional.status?.trim().toLowerCase() === 'inativo';
+    if (profissional.ativo === false || statusInativo) {
       throw new BadRequestException('O profissional informado está inativo.');
     }
 
