@@ -23,7 +23,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, options: { body?: object; token?: string } = {}) {
+export async function api<T>(path: string, options: { body?: object; token?: string; method?: 'PATCH' | 'DELETE' } = {}) {
   const base = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
   const headers = new Headers({ Accept: 'application/json' });
   if (options.body) headers.set('Content-Type', 'application/json');
@@ -32,7 +32,7 @@ export async function api<T>(path: string, options: { body?: object; token?: str
 
   try {
     response = await fetch(base + path, {
-      method: options.body ? 'POST' : 'GET',
+      method: options.method ?? (options.body ? 'POST' : 'GET'),
       headers,
       body: options.body && JSON.stringify(options.body),
     });

@@ -1,12 +1,13 @@
 import {
   CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, ShieldCheck, Sparkles, Users, UserRoundCog, X,
+  LogOut, Menu, Search, ShieldCheck, Sparkles, Users, UserRoundCog, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { areas, expiration, type Area, type Session } from './api';
+import { areas, expiration, type Session } from './api';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
+import { Team, TeamNotification, type TeamNotificationAction } from './Team';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 
 const overview = [
@@ -49,6 +50,7 @@ function NavigationGroup({ title, items }: { title: string; items: typeof naviga
 function Workspace({ session, signOut }: { session: Session; signOut: () => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [teamQuery, setTeamQuery] = useState('');
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLElement>(null);
@@ -57,6 +59,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
   const navigate = useNavigate();
   const person = session.profissional;
   const admin = person.areaAtuacao === 'coordenacao_administrativa';
+  const isTeam = admin && location.pathname === '/equipe';
   const page = navigation.find((item) => item.path === location.pathname);
   const initials = person.nomeCompleto.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
 
@@ -124,7 +127,10 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
       <header className="topbar">
         <button ref={menuButton} className="icon-button open-drawer" type="button" aria-controls="sidebar"
           aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Menu size={22} /></button>
-        <span className="current-page">{page?.label}</span>
+        {isTeam ? <label className="field team-search"><span className="sr-only">Buscar profissionais</span>
+          <span className="search-field"><Search size={19} aria-hidden="true" /><input type="search" value={teamQuery}
+            placeholder="Buscar profissionais..." onChange={(event) => setTeamQuery(event.target.value)} /></span>
+        </label> : <span className="current-page">{page?.label}</span>}
         <div className="profile" ref={profile}>
           <button className="profile-button" type="button" aria-label="Opções da conta" aria-expanded={profileOpen}
             aria-controls="profile-options" onClick={() => setProfileOpen(!profileOpen)}>
@@ -138,7 +144,7 @@ function Workspace({ session, signOut }: { session: Session; signOut: () => void
           </div>}
         </div>
       </header>
-      <main className="main-content" ref={content} id="conteudo" tabIndex={-1}><Outlet /></main>
+      <main className="main-content" ref={content} id="conteudo" tabIndex={-1}><Outlet context={teamQuery} /></main>
     </div>
   </div>;
 }
@@ -167,42 +173,6 @@ function Dashboard({ token, onExpired }: DataAccess) {
   </>;
 }
 
-interface TeamMember {
-  id: string;
-  nome_completo: string;
-  area_atuacao: Area;
-  cargo: string | null;
-  capacidade_semanal: number | null;
-  status: string | null;
-}
-
-function Team({ token, onExpired }: DataAccess) {
-  const [area, setArea] = useState('');
-  const { records, error, reload } = useRecords<TeamMember>('/profissionais', token, onExpired);
-  const filtered = records?.filter((person) => !area || person.area_atuacao === area);
-  return <>
-    <PageHeader title="Equipe" description="Consulte a equipe por área de atuação." />
-    <section className="panel">
-      <label className="field filter-field"><span>Área de atuação</span>
-        <select value={area} onChange={(event) => setArea(event.target.value)}>
-          <option value="">Todas as áreas</option>
-          {Object.entries(areas).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </label>
-      {error ? <><p className="notice error" role="alert">{error}</p><button type="button" className="text-button" onClick={reload}>Tentar novamente</button></>
-        : !filtered ? <p role="status">Carregando equipe…</p>
-        : !filtered.length ? <p role="status">Nenhum profissional encontrado.</p>
-        : <div className="table-scroll"><table>
-          <thead><tr><th scope="col">Nome</th><th scope="col">Área de atuação</th><th scope="col">Cargo</th><th scope="col">Capacidade semanal</th><th scope="col">Status</th></tr></thead>
-          <tbody>{filtered.map((person) => <tr key={person.id}>
-            <td>{person.nome_completo}</td><td>{areas[person.area_atuacao] ?? '—'}</td>
-            <td>{person.cargo || '—'}</td><td>{person.capacidade_semanal ?? '—'}</td><td>{person.status || '—'}</td>
-          </tr>)}</tbody>
-        </table></div>}
-    </section>
-  </>;
-}
-
 function PendingModule({ title }: { title: string }) {
   return <><PageHeader title={title} description="Este módulo está em desenvolvimento." />
     <Link to="/dashboard">Voltar para o Dashboard</Link></>;
@@ -210,10 +180,16 @@ function PendingModule({ title }: { title: string }) {
 
 export default function App() {
   const [session, setSession] = useState(readSession);
+  const [teamNotification, setTeamNotification] = useState<{ action: TeamNotificationAction }>();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  useEffect(() => {
+    if (!teamNotification) return;
+    const timer = window.setTimeout(() => setTeamNotification(undefined), 2000);
+    return () => window.clearTimeout(timer);
+  }, [teamNotification]);
 
   function signIn(newSession: Session) {
     sessionStorage.setItem(sessionKey, JSON.stringify(newSession));
@@ -238,22 +214,26 @@ export default function App() {
   const home = <Navigate to="/dashboard" replace />;
   const login = <Navigate to="/login" replace />;
   const dataAccess = { token: session?.accessToken ?? '', onExpired: sessionExpired };
-  return <Routes>
-    <Route path="/" element={session ? home : login} />
-    <Route path="/inicio" element={session ? home : <Welcome />} />
-    <Route path="/login" element={session ? home : <Login onSession={signIn} />} />
-    <Route path="/cadastro" element={session ? home : <Register onSession={signIn} />} />
-    <Route path="/recuperar-senha" element={<Recovery />} />
-    <Route path="/redefinir-senha" element={<ResetPassword />} />
-    <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
-      <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
-      <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} />} />
-      {[overview[2], ...operations].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
-      <Route element={session?.profissional.areaAtuacao === 'coordenacao_administrativa' ? <Outlet /> : home}>
-        <Route path="/equipe" element={<Team {...dataAccess} />} />
-        {[management[0], management[2]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
+  return <>
+    <TeamNotification action={teamNotification?.action} />
+    <Routes>
+      <Route path="/" element={session ? home : login} />
+      <Route path="/inicio" element={session ? home : <Welcome />} />
+      <Route path="/login" element={session ? home : <Login onSession={signIn} />} />
+      <Route path="/cadastro" element={session ? home : <Register onSession={signIn} />} />
+      <Route path="/recuperar-senha" element={<Recovery />} />
+      <Route path="/redefinir-senha" element={<ResetPassword />} />
+      <Route element={session ? <Workspace session={session} signOut={signOut} /> : login}>
+        <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
+        <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} />} />
+        {[overview[2], ...operations].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
+        <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
+          ? <Team {...dataAccess} onNotify={(action) => setTeamNotification({ action })} /> : home} />
+        <Route element={session?.profissional.areaAtuacao === 'coordenacao_administrativa' ? <Outlet /> : home}>
+          {[management[0], management[2]].map(({ path, label }) => <Route key={path} path={path} element={<PendingModule title={label} />} />)}
+        </Route>
       </Route>
-    </Route>
-    <Route path="*" element={session ? home : login} />
-  </Routes>;
+      <Route path="*" element={session ? home : login} />
+    </Routes>
+  </>;
 }
