@@ -42,6 +42,19 @@ describe('SugestoesRepository', () => {
     );
   });
 
+  it('devolve os atendimentos mantidos em reduções como conjunto', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: 'at-1' }, { id: 'at-2' }],
+    });
+
+    await expect(repository.listarAtendimentosMantidos()).resolves.toEqual(
+      new Set(['at-1', 'at-2']),
+    );
+    expect(pool.query.mock.calls[0][0]).toContain(
+      'unnest(atendimentos_mantidos)',
+    );
+  });
+
   describe('registrarDecisao', () => {
     const decisao = {
       sugestaoId: 'a'.repeat(24),
@@ -69,6 +82,8 @@ describe('SugestoesRepository', () => {
         null,
         ['prof-1'],
         'usuario-1',
+        null,
+        [],
       ]);
     });
 

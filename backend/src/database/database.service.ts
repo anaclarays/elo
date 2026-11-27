@@ -88,7 +88,7 @@ export class DatabaseService implements OnModuleInit {
     // para a tela funcionar mesmo em bancos onde a migration ainda não rodou
     await this.pool.query(`
       DO $$ BEGIN
-        CREATE TYPE decisao_sugestao_enum AS ENUM ('aprovada', 'descartada');
+        CREATE TYPE decisao_sugestao_enum AS ENUM ('aprovada', 'descartada', 'modificada');
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$
     `);
@@ -102,7 +102,9 @@ export class DatabaseService implements OnModuleInit {
         titulo TEXT NOT NULL,
         decisao decisao_sugestao_enum NOT NULL,
         motivo TEXT,
+        ajuste TEXT,
         profissionais UUID[] NOT NULL DEFAULT '{}',
+        atendimentos_mantidos UUID[] NOT NULL DEFAULT '{}',
         decidido_por UUID NOT NULL REFERENCES profissionais(id),
         decidido_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CONSTRAINT decisao_motivo_ck
@@ -110,11 +112,17 @@ export class DatabaseService implements OnModuleInit {
       )
     `);
 
-    // Bancos que rodaram a primeira versão da migration 007 não têm esta coluna
+    // Bancos que rodaram versões anteriores da migration 007 não têm estas colunas
     await this.pool.query(`
       ALTER TABLE decisoes_sugestoes
-        ADD COLUMN IF NOT EXISTS profissionais UUID[] NOT NULL DEFAULT '{}'
+        ADD COLUMN IF NOT EXISTS profissionais UUID[] NOT NULL DEFAULT '{}',
+        ADD COLUMN IF NOT EXISTS ajuste TEXT,
+        ADD COLUMN IF NOT EXISTS atendimentos_mantidos UUID[] NOT NULL DEFAULT '{}'
     `);
+
+    await this.pool.query(
+      `ALTER TYPE decisao_sugestao_enum ADD VALUE IF NOT EXISTS 'modificada'`,
+    );
 
     await this.pool.query(`
       CREATE INDEX IF NOT EXISTS decisoes_sugestoes_decidido_em_idx

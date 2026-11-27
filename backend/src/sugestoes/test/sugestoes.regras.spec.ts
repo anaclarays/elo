@@ -273,6 +273,7 @@ describe('gerarSugestoes', () => {
           pacienteId: '91',
           isTea: false,
           profissionalId: 'bruno',
+          profissionalNome: 'Bruno',
           // Hoje às 10:00: uma hora depois de agora
           dataInicio: em('2026-11-25', '10:00').toISOString(),
           tipoAtendimento: TipoAtendimento.PSICOLOGIA,
@@ -282,6 +283,7 @@ describe('gerarSugestoes', () => {
           pacienteId: '92',
           isTea: false,
           profissionalId: 'bruno',
+          profissionalNome: 'Bruno',
           // A capacidade desta semana acabou: vai para a segunda seguinte
           dataInicio: em('2026-11-30', '08:00').toISOString(),
           tipoAtendimento: TipoAtendimento.PSICOLOGIA,
@@ -389,11 +391,35 @@ describe('gerarSugestoes', () => {
       expect(sugestao.acao).toEqual({
         tipo: 'cancelar',
         atendimentoIds: [agendaDoPaciente[4].id, agendaDoPaciente[5].id],
+        atendimentos: [agendaDoPaciente[4], agendaDoPaciente[5]].map((a) => ({
+          id: a.id,
+          dataInicio: a.dataInicio.toISOString(),
+        })),
       });
       expect(sugestao.motivo).toContain(
         'João tem 6 atendimentos nos próximos 30 dias',
       );
       expect(sugestao.consequencia).toContain('libera 2 horários');
+    });
+
+    it('não conta para o limite os atendimentos que a coordenação já decidiu manter', () => {
+      const comUmMantido = dados({
+        profissionais: [bruno],
+        atendimentos: agendaDoPaciente,
+        fila: [familia(1)],
+      });
+      comUmMantido.mantidos = new Set([agendaDoPaciente[5].id]);
+      const [sugestao] = doTipo(comUmMantido, TipoSugestao.REDUCAO_FREQUENCIA);
+
+      expect(sugestao.acao).toEqual(
+        expect.objectContaining({ atendimentoIds: [agendaDoPaciente[4].id] }),
+      );
+
+      comUmMantido.mantidos = new Set([
+        agendaDoPaciente[4].id,
+        agendaDoPaciente[5].id,
+      ]);
+      expect(doTipo(comUmMantido, TipoSugestao.REDUCAO_FREQUENCIA)).toEqual([]);
     });
 
     it('não sugere redução quando a fila está vazia', () => {

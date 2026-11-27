@@ -50,17 +50,29 @@ export interface FamiliaFila {
   dataEntrada: Date;
 }
 
+// Os nomes e datas extras servem para a tela preencher o formulário de "Modificar"
 export type AcaoSugestao =
-  | { tipo: 'transferir'; atendimentoId: string; profissionalId: string }
+  | {
+      tipo: 'transferir';
+      atendimentoId: string;
+      profissionalId: string;
+      profissionalNome: string;
+      dataInicio: string;
+    }
   | {
       tipo: 'agendar';
       pacienteId: string;
       isTea: boolean;
       profissionalId: string;
+      profissionalNome: string;
       dataInicio: string;
       tipoAtendimento: TipoAtendimento;
     }
-  | { tipo: 'cancelar'; atendimentoIds: string[] };
+  | {
+      tipo: 'cancelar';
+      atendimentoIds: string[];
+      atendimentos: { id: string; dataInicio: string }[];
+    };
 
 export interface Sugestao {
   id: string;
@@ -79,6 +91,8 @@ export interface DadosSugestoes {
   atendimentos: AtendimentoAgenda[];
   fila: FamiliaFila[];
   decididas: Set<string>;
+  // Atendimentos que a coordenação já decidiu manter numa redução de frequência
+  mantidos?: Set<string>;
 }
 
 const dataCurta = new Intl.DateTimeFormat('pt-BR', {
@@ -97,7 +111,7 @@ const diaDaSemana = new Intl.DateTimeFormat('pt-BR', {
   weekday: 'long',
 });
 
-const quando = (data: Date) =>
+export const quando = (data: Date) =>
   `${diaDaSemana.format(data)}, ${dataCurta.format(data)} às ${hora.format(data)}`;
 const plural = (n: number, um: string, varios: string) =>
   `${n} ${n === 1 ? um : varios}`;
@@ -319,6 +333,8 @@ function sobrecarga(
             tipo: 'transferir',
             atendimentoId: atendimento.id,
             profissionalId: destino.id,
+            profissionalNome: destino.nome,
+            dataInicio: atendimento.dataInicio.toISOString(),
           },
         });
       }
@@ -433,6 +449,7 @@ function vagasParaFila(
             pacienteId: familia.pacienteId,
             isTea: familia.tipoPaciente === 'tea',
             profissionalId: profissional.id,
+            profissionalNome: profissional.nome,
             dataInicio: inicio.toISOString(),
             tipoAtendimento: tipo!,
           },
@@ -452,6 +469,8 @@ function reducaoDeFrequencia(dados: DadosSugestoes): Sugestao[] {
   for (const a of dados.atendimentos) {
     if (a.dataInicio.getTime() < desde || a.dataInicio.getTime() >= ate)
       continue;
+    // Atendimento que a coordenação já decidiu manter não conta para o limite
+    if (dados.mantidos?.has(a.id)) continue;
     porPaciente.set(chavePaciente(a), [
       ...(porPaciente.get(chavePaciente(a)) ?? []),
       a,
@@ -479,7 +498,14 @@ function reducaoDeFrequencia(dados: DadosSugestoes): Sugestao[] {
       motivo: `${nome} tem ${atendimentos.length} atendimentos nos próximos ${LIMITES.diasAnalisados} dias, acima do limite de ${LIMITES.atendimentosPorPaciente} (cerca de 1 por semana), enquanto ${plural(dados.fila.length, 'família espera', 'famílias esperam')} na lista de espera.`,
       consequencia: `Cancela ${plural(excedentes.length, 'atendimento', 'atendimentos')} (${excedentes.map((a) => quando(a.dataInicio)).join('; ')}) e libera ${plural(excedentes.length, 'horário', 'horários')} no mês para famílias da fila. Confirme com o profissional responsável antes de aprovar.`,
       profissionais: [...new Set(excedentes.map((a) => a.profissionalId))],
-      acao: { tipo: 'cancelar', atendimentoIds: excedentes.map((a) => a.id) },
+      acao: {
+        tipo: 'cancelar',
+        atendimentoIds: excedentes.map((a) => a.id),
+        atendimentos: excedentes.map((a) => ({
+          id: a.id,
+          dataInicio: a.dataInicio.toISOString(),
+        })),
+      },
     });
   }
   return sugestoes;

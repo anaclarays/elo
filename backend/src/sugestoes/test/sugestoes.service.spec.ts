@@ -19,6 +19,7 @@ describe('SugestoesService', () => {
     listarProfissionais: jest.fn(),
     listarAgendados: jest.fn(),
     listarIdsDecididos: jest.fn(),
+    listarAtendimentosMantidos: jest.fn(),
     registrarDecisao: jest.fn(),
     removerDecisao: jest.fn(),
     listarHistorico: jest.fn(),
@@ -59,6 +60,7 @@ describe('SugestoesService', () => {
     ]);
     repository.listarAgendados.mockResolvedValue([]);
     repository.listarIdsDecididos.mockResolvedValue(new Set());
+    repository.listarAtendimentosMantidos.mockResolvedValue(new Set());
     listaEsperaService.consultar.mockResolvedValue([
       {
         id: 'fila-1',
@@ -84,6 +86,23 @@ describe('SugestoesService', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
+
+  // João com 5 atendimentos no mês: a redução propõe cancelar o último (at-4)
+  const idReducaoJoao = idSugestao('reducao_frequencia:beneficiario:3:at-4');
+  const comAgendaDoJoao = () => {
+    comUmaFamiliaNaFila();
+    repository.listarAgendados.mockResolvedValue(
+      ['11-26', '12-01', '12-03', '12-08', '12-10'].map((dia, i) => ({
+        id: `at-${i}`,
+        profissionalId,
+        pacienteId: '3',
+        isTea: false,
+        pacienteNome: 'João',
+        dataInicio: `2026-${dia}T08:00:00-03:00`,
+        tipo: TipoAtendimento.PSICOLOGIA,
+      })),
+    );
+  };
 
   describe('listar', () => {
     it('calcula as sugestões com a agenda da semana atual até 30 dias à frente', async () => {
@@ -192,6 +211,7 @@ describe('SugestoesService', () => {
 
       expect(atendimentosService.update).toHaveBeenCalledWith('at-1', {
         profissionalId: outro,
+        dataInicio: new Date('2026-11-26T09:00:00-03:00'),
       });
     });
 
@@ -220,6 +240,17 @@ describe('SugestoesService', () => {
       expect(atendimentosService.cancel).toHaveBeenCalledWith(
         'at-4',
         'Redução de frequência sugerida pelo sistema e aprovada em Sugestões de IA',
+      );
+    });
+
+    it('não registra atendimento mantido quando a redução é aprovada inteira', async () => {
+      comAgendaDoJoao();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+
+      await service.aprovar(idReducaoJoao, coordenacao);
+
+      expect(repository.registrarDecisao).toHaveBeenCalledWith(
+        expect.objectContaining({ atendimentosMantidos: [] }),
       );
     });
 
@@ -256,6 +287,192 @@ describe('SugestoesService', () => {
     });
   });
 
+  describe('modificar', () => {
+    const outroProfissional = 'f5ddf144-4b5e-4ef8-bb6d-6bb9bd380a66';
+    const comDoisProfissionais = () => {
+      comUmaFamiliaNaFila();
+      repository.listarProfissionais.mockResolvedValue([
+        {
+          id: profissionalId,
+          nome: 'Bruno',
+          area: AreaAtuacao.VOLUNTARIADO_SAUDE,
+          capacidadeSemanal: 5,
+          horarioInicio: '08:00',
+          horarioFim: '12:00',
+        },
+        {
+          id: outroProfissional,
+          nome: 'Carla',
+          area: AreaAtuacao.VOLUNTARIADO_SAUDE,
+          capacidadeSemanal: 1,
+          horarioInicio: '08:00',
+          horarioFim: '12:00',
+        },
+      ]);
+    };
+
+    it('agenda com o profissional, o horário e o tipo ajustados e registra o que mudou', async () => {
+      comDoisProfissionais();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+      atendimentosService.create.mockResolvedValueOnce({ id: 'atendimento-1' });
+
+      await service.modificar(
+        idVaga,
+        {
+          motivo: 'A família prefere a Carla',
+          profissionalId: outroProfissional,
+          dataInicio: new Date('2026-11-27T09:00:00-03:00'),
+          tipo: TipoAtendimento.TERAPIA_OCUPACIONAL,
+        },
+        coordenacao,
+      );
+
+      expect(atendimentosService.create).toHaveBeenCalledWith({
+        pacienteId: 7,
+        isTea: false,
+        profissionalId: outroProfissional,
+        dataInicio: new Date('2026-11-27T09:00:00-03:00'),
+        tipo: TipoAtendimento.TERAPIA_OCUPACIONAL,
+      });
+      expect(repository.registrarDecisao).toHaveBeenCalledWith(
+        expect.objectContaining({
+          decisao: Decisao.MODIFICADA,
+          motivo: 'A família prefere a Carla',
+          ajuste:
+            'Profissional: Bruno → Carla; horário: quarta-feira, 25/11 às 10:00 → sexta-feira, 27/11 às 09:00; tipo: psicologia → terapia ocupacional.',
+        }),
+      );
+    });
+
+    it('recusa quando nada muda', async () => {
+      comUmaFamiliaNaFila();
+
+      await expect(
+        service.modificar(
+          idVaga,
+          {
+            motivo: 'x',
+            profissionalId,
+            dataInicio: new Date('2026-11-25T10:00:00-03:00'),
+          },
+          coordenacao,
+        ),
+      ).rejects.toThrow('Nenhum ajuste informado');
+      expect(repository.registrarDecisao).not.toHaveBeenCalled();
+    });
+
+    it('recusa campos que não valem para o tipo de sugestão', async () => {
+      comUmaFamiliaNaFila();
+
+      await expect(
+        service.modificar(
+          idVaga,
+          { motivo: 'x', atendimentoIds: ['at-1'] },
+          coordenacao,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('voluntário ajusta o horário, mas não troca o profissional', async () => {
+      comDoisProfissionais();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+
+      await service.modificar(
+        idVaga,
+        {
+          motivo: 'Horário melhor',
+          dataInicio: new Date('2026-11-26T08:00:00-03:00'),
+        },
+        voluntario,
+      );
+      expect(atendimentosService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profissionalId,
+          dataInicio: new Date('2026-11-26T08:00:00-03:00'),
+        }),
+      );
+
+      await expect(
+        service.modificar(
+          idVaga,
+          { motivo: 'x', profissionalId: outroProfissional },
+          voluntario,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('cancela só os atendimentos escolhidos na redução', async () => {
+      comUmaFamiliaNaFila();
+      repository.listarAgendados.mockResolvedValue(
+        ['11-26', '12-01', '12-03', '12-08', '12-10', '12-15'].map(
+          (dia, i) => ({
+            id: `b${i}aaaaaa-0000-4000-8000-000000000000`,
+            profissionalId,
+            pacienteId: '3',
+            isTea: false,
+            pacienteNome: 'João',
+            dataInicio: `2026-${dia}T08:00:00-03:00`,
+            tipo: TipoAtendimento.PSICOLOGIA,
+          }),
+        ),
+      );
+      const ids = [
+        'b4aaaaaa-0000-4000-8000-000000000000',
+        'b5aaaaaa-0000-4000-8000-000000000000',
+      ];
+      const idReducao = idSugestao(
+        `reducao_frequencia:beneficiario:3:${ids.join(',')}`,
+      );
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+
+      await service.modificar(
+        idReducao,
+        { motivo: 'Manter dezembro', atendimentoIds: [ids[1]] },
+        coordenacao,
+      );
+
+      expect(atendimentosService.cancel).toHaveBeenCalledTimes(1);
+      expect(atendimentosService.cancel).toHaveBeenCalledWith(
+        ids[1],
+        expect.any(String),
+      );
+      expect(repository.registrarDecisao).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ajuste: 'Cancela 1 de 2 atendimentos: terça-feira, 15/12 às 08:00.',
+          atendimentosMantidos: [ids[0]],
+        }),
+      );
+
+      await expect(
+        service.modificar(
+          idReducao,
+          {
+            motivo: 'x',
+            atendimentoIds: ['c0aaaaaa-0000-4000-8000-000000000000'],
+          },
+          coordenacao,
+        ),
+      ).rejects.toThrow('Escolha ao menos um dos atendimentos');
+    });
+
+    it('desfaz a decisão quando a agenda recusa o ajuste', async () => {
+      comUmaFamiliaNaFila();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+      atendimentosService.create.mockRejectedValueOnce(
+        new BadRequestException('Fora do horário do profissional'),
+      );
+
+      await expect(
+        service.modificar(
+          idVaga,
+          { motivo: 'x', dataInicio: new Date('2026-11-26T19:00:00-03:00') },
+          coordenacao,
+        ),
+      ).rejects.toThrow('Fora do horário do profissional');
+      expect(repository.removerDecisao).toHaveBeenCalledWith(idVaga);
+    });
+  });
+
   describe('descartar', () => {
     it('registra o descarte com o motivo, sem mexer na agenda', async () => {
       comUmaFamiliaNaFila();
@@ -275,6 +492,30 @@ describe('SugestoesService', () => {
         }),
       );
       expect(atendimentosService.create).not.toHaveBeenCalled();
+    });
+
+    it('mantém os atendimentos de uma redução descartada', async () => {
+      comAgendaDoJoao();
+      repository.registrarDecisao.mockResolvedValueOnce({ id: 'decisao-1' });
+
+      await service.descartar(idReducaoJoao, 'Família precisa', coordenacao);
+
+      expect(repository.registrarDecisao).toHaveBeenCalledWith(
+        expect.objectContaining({ atendimentosMantidos: ['at-4'] }),
+      );
+    });
+
+    it('não propõe de novo reduzir atendimento que a coordenação manteve', async () => {
+      comAgendaDoJoao();
+      repository.listarAtendimentosMantidos.mockResolvedValue(
+        new Set(['at-4']),
+      );
+
+      const { sugestoes } = await service.listar(coordenacao);
+
+      expect(sugestoes.map((s) => s.tipo)).not.toContain(
+        TipoSugestao.REDUCAO_FREQUENCIA,
+      );
     });
 
     it('recusa descartar uma sugestão já decidida', async () => {

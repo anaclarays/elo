@@ -14,6 +14,7 @@ describe('SugestoesController', () => {
     listar: jest.fn(),
     historico: jest.fn(),
     aprovar: jest.fn(),
+    modificar: jest.fn(),
     descartar: jest.fn(),
   };
   const id = 'a'.repeat(24);
@@ -68,6 +69,16 @@ describe('SugestoesController', () => {
   it('aprova em nome de quem está logado', async () => {
     await controller.aprovar(id, request);
     expect(mockService.aprovar).toHaveBeenCalledWith(id, coordenacao);
+  });
+
+  it('modifica com os ajustes informados', async () => {
+    const ajustes = { motivo: 'Outro horário' };
+    await controller.modificar(id, ajustes, request);
+    expect(mockService.modificar).toHaveBeenCalledWith(
+      id,
+      ajustes,
+      coordenacao,
+    );
   });
 
   it('descarta com o motivo informado', async () => {

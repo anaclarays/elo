@@ -11,6 +11,7 @@ import {
 export enum Decisao {
   APROVADA = 'aprovada',
   DESCARTADA = 'descartada',
+  MODIFICADA = 'modificada',
 }
 
 export interface NovaDecisao {
@@ -19,7 +20,11 @@ export interface NovaDecisao {
   titulo: string;
   decisao: Decisao;
   motivo: string | null;
+  // O que foi alterado antes de aprovar (só nas decisões "modificada")
+  ajuste?: string | null;
   profissionais: string[];
+  // Atendimentos que a coordenação decidiu manter numa redução de frequência
+  atendimentosMantidos?: string[];
   decididoPor: string;
 }
 
@@ -33,7 +38,7 @@ export interface DecisaoHistorico extends DecisaoRegistrada {
 }
 
 const PROJECAO_DECISAO = `id, sugestao_id AS "sugestaoId", tipo, titulo, decisao, motivo,
-  profissionais, decidido_por AS "decididoPor", decidido_em AS "decididoEm"`;
+  ajuste, profissionais, decidido_por AS "decididoPor", decidido_em AS "decididoEm"`;
 
 @Injectable()
 export class SugestoesRepository {
@@ -86,14 +91,24 @@ export class SugestoesRepository {
     return new Set(rows.map((row: { sugestaoId: string }) => row.sugestaoId));
   }
 
+  // Atendimentos mantidos ao modificar ou descartar uma redução de frequência
+  async listarAtendimentosMantidos(): Promise<Set<string>> {
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT unnest(atendimentos_mantidos)::text AS id
+         FROM decisoes_sugestoes`,
+    );
+    return new Set(rows.map((row: { id: string }) => row.id));
+  }
+
   // Devolve null se a sugestão já tinha sido decidida (evita aprovar duas vezes)
   async registrarDecisao(
     decisao: NovaDecisao,
   ): Promise<DecisaoRegistrada | null> {
     const { rows } = await this.pool.query(
       `INSERT INTO decisoes_sugestoes
-         (sugestao_id, tipo, titulo, decisao, motivo, profissionais, decidido_por)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (sugestao_id, tipo, titulo, decisao, motivo, profissionais, decidido_por, ajuste,
+          atendimentos_mantidos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (sugestao_id) DO NOTHING
        RETURNING ${PROJECAO_DECISAO}`,
       [
@@ -104,6 +119,8 @@ export class SugestoesRepository {
         decisao.motivo,
         decisao.profissionais,
         decisao.decididoPor,
+        decisao.ajuste ?? null,
+        decisao.atendimentosMantidos ?? [],
       ],
     );
     return rows[0] ?? null;
@@ -129,7 +146,7 @@ export class SugestoesRepository {
     }
     const { rows } = await this.pool.query(
       `SELECT d.id, d.sugestao_id AS "sugestaoId", d.tipo, d.titulo, d.decisao,
-              d.motivo, d.profissionais, d.decidido_por AS "decididoPor",
+              d.motivo, d.ajuste, d.profissionais, d.decidido_por AS "decididoPor",
               d.decidido_em AS "decididoEm", pr.nome_completo AS "decididoPorNome"
          FROM decisoes_sugestoes d
          JOIN profissionais pr ON pr.id = d.decidido_por

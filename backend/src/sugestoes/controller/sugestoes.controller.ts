@@ -14,6 +14,7 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AreaAtuacao } from '../../profissionais/dto/create-profissional.dto';
 import { DescartarSugestaoDto } from '../dto/descartar-sugestao.dto';
+import { ModificarSugestaoDto } from '../dto/modificar-sugestao.dto';
 import {
   SugestoesService,
   UsuarioSugestoes,
@@ -61,6 +62,16 @@ export class SugestoesController {
     @Req() request: RequestAutenticado,
   ) {
     return this.sugestoesService.aprovar(id, usuario(request));
+  }
+
+  @Post(':id/modificar')
+  @HttpCode(200)
+  modificar(
+    @Param('id', IdSugestaoPipe) id: string,
+    @Body() dto: ModificarSugestaoDto,
+    @Req() request: RequestAutenticado,
+  ) {
+    return this.sugestoesService.modificar(id, dto, usuario(request));
   }
 
   @Post(':id/descartar')
