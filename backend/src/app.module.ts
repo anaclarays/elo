@@ -11,6 +11,7 @@ import { HistoricoClinicoModule } from './historico-clinico/historico-clinico.mo
 import { ListaEsperaModule } from './lista-espera/lista-espera.module';
 import { AtendimentosModule } from './atendimentos/atendimentos.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
+import { SugestoesModule } from './sugestoes/sugestoes.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RelatoriosModule } from './relatorios/relatorios.module';
     ListaEsperaModule,
     AtendimentosModule,
     RelatoriosModule,
+    SugestoesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
