@@ -20,9 +20,7 @@ O sistema contempla funcionalidades voltadas à gestão operacional e ao acompan
 - **Gerenciamento de agendamentos:** organização e acompanhamento dos agendamentos.
 - **Gerenciamento de profissionais (Equipe):** controle das informações e disponibilidade dos profissionais.
 - **Lista de espera:** acompanhamento de demandas que aguardam disponibilidade.
-- **Acompanhamento de atividades:** visualização e acompanhamento das atividades realizadas.
-- **Relatórios gerenciais:** disponibilização de informações para apoiar o acompanhamento e a gestão.
-- **Indicadores e análises comparativas:** acompanhamento de dados e comparação de atividades.
+- **Relatórios e indicadores:** beneficiários ativos, sessões no período, taxa de cancelamento, atendimentos agendados por profissional, pacientes com TEA por nível de suporte e pacientes cadastrados recentemente, com filtro por período (últimos 7, 30 ou 90 dias, ou todo o período).
 - **Inteligência para gestão de disponibilidade:** sugestões de melhorias relacionadas à sobrecarga e à disponibilidade de agendamentos, considerando os profissionais disponíveis e suas agendas. Veja como funciona em [docs/architecture/sugestoes-ia.md](docs/architecture/sugestoes-ia.md) e a decisão na [ADR 008](docs/adr/008-sugestoes-ia.md).
 - **Acesso e perfil:** login, recuperação de senha por e-mail e edição do próprio perfil.
 
@@ -59,7 +57,6 @@ O sistema contempla funcionalidades voltadas à gestão operacional e ao acompan
 
 - Git e GitHub — versionamento e colaboração
 - Postman — testes e validação de endpoints
-- Jest — testes automatizados do backend
 - Notion — organização e documentação do projeto
 
 ---
