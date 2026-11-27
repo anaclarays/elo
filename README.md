@@ -1,108 +1,322 @@
-# Elo
+# ELO — Sistema de Gestão Inteligente Integrada
 
-STATUS - Em desenvolvimento.
+> Sistema desenvolvido como projeto da disciplina de Integração e Evolução de Sistemas de Informação (IESI), com foco no cadastro e acompanhamento de beneficiários, no gerenciamento de agendamentos e no apoio à gestão de disponibilidade de profissionais.
 
-## Backend - Configuração do projeto 
+**Status:** Projeto concluído.
+
+---
+
+## Sobre o projeto
+
+O **ELO** é um sistema desenvolvido para apoiar a ONG Palavra em Ação no cadastro e acompanhamento dos beneficiários e no gerenciamento de agendamentos e atividades, centralizando informações, facilitando o acompanhamento da agenda e oferecendo recursos para auxiliar na organização e tomada de decisões.
+
+O projeto foi desenvolvido durante a disciplina de Integração e Evolução de Sistemas de Informação e contempla o levantamento e especificação de requisitos, definição da arquitetura, planejamento, implementação, testes e documentação, aplicando práticas de Engenharia de Software ao longo do ciclo de desenvolvimento.
+
+## Funcionalidades
+
+O sistema contempla funcionalidades voltadas à gestão operacional e ao acompanhamento gerencial, incluindo:
+
+- **Beneficiários:** cadastro de pacientes, incluindo pacientes com TEA, e prontuário com o histórico de atendimentos e registros clínicos.
+- **Gerenciamento de agendamentos:** organização e acompanhamento dos agendamentos.
+- **Gerenciamento de profissionais (Equipe):** controle das informações e disponibilidade dos profissionais.
+- **Lista de espera:** acompanhamento de demandas que aguardam disponibilidade.
+- **Relatórios e indicadores:** beneficiários ativos, sessões no período, taxa de cancelamento, atendimentos agendados por profissional, pacientes com TEA por nível de suporte e pacientes cadastrados recentemente, com filtro por período (últimos 7, 30 ou 90 dias, ou todo o período).
+- **Inteligência para gestão de disponibilidade:** sugestões de melhorias relacionadas à sobrecarga e à disponibilidade de agendamentos, considerando os profissionais disponíveis e suas agendas. Veja como funciona em [docs/architecture/sugestoes-ia.md](docs/architecture/sugestoes-ia.md) e a decisão na [ADR 008](docs/adr/008-sugestoes-ia.md).
+- **Acesso e perfil:** login, recuperação de senha por e-mail e edição do próprio perfil.
+
+> As funcionalidades devem ser consultadas conforme os módulos e permissões disponibilizados na versão final do sistema. O módulo mobile, voltado às famílias, está previsto para uma etapa futura e não faz parte desta versão.
+
+---
+
+## Tecnologias utilizadas
+
+### Backend
+
+- [Node.js](https://nodejs.org/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [NestJS](https://nestjs.com/)
+- [node-postgres (`pg`)](https://node-postgres.com/) — acesso ao banco de dados, com consultas SQL
+- [PostgreSQL](https://www.postgresql.org/)
+- [JWT](https://jwt.io/) — autenticação
+- Jest — testes automatizados
+- oxlint — análise estática do código (lint)
+
+### Frontend Web
+
+- React
+- TypeScript
+- Vite
+- React Router
+
+### Banco de dados
+
+- PostgreSQL
+- [Neon](https://neon.tech/) — hospedagem do banco de dados
+
+### Ferramentas de desenvolvimento
+
+- Git e GitHub — versionamento e colaboração
+- Postman — testes e validação de endpoints
+- Notion — organização e documentação do projeto
+
+---
+
+## Estrutura do repositório
+
+```text
+elo/
+├── .github/                  # Templates de issues e de pull requests
+│
+├── backend/
+│   ├── src/                  # Código-fonte do backend
+│   ├── test/                 # Testes automatizados
+│   ├── .env.example          # Exemplo de configuração do ambiente
+│   ├── .gitignore
+│   ├── .prettierrc
+│   ├── jest.config.ts        # Configuração do Jest
+│   ├── nest-cli.json         # Configuração do NestJS
+│   ├── oxlint.json           # Configuração do lint (oxlint)
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── tsconfig.json
+│   └── tsconfig.build.json
+│
+├── docs/                     # Documentação do projeto
+│   ├── adr/                  # Registros de decisões de arquitetura (ADRs)
+│   └── architecture/         # Diagrama C4 e documentação técnica
+│
+├── frontend/
+│   ├── public/               # Arquivos estáticos públicos
+│   ├── src/                  # Código-fonte do frontend
+│   ├── .gitignore
+│   ├── index.html            # Página HTML principal
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── tsconfig.json
+│   └── vite.config.js        # Configuração do Vite
+│
+├── CONTRIBUTORS.md
+├── LICENSE
+└── README.md
+```
+
+As pastas `node_modules/` e `dist/` são geradas ao instalar as dependências e compilar o projeto, e não são versionadas.
+
+---
+
+## Executando o projeto localmente
 
 ### Pré-requisitos
 
 Antes de executar o projeto, é necessário ter instalado:
 
-- [Node.js](https://nodejs.org/) 24 ou superior (confira com `node -v`)
-- npm (geralmente instalado junto com o Node.js)
-- Git
+- [Node.js](https://nodejs.org/) — versão 24 ou superior
+- npm — instalado junto com o Node.js
+- [Git](https://git-scm.com/)
+- Acesso às credenciais do banco de dados PostgreSQL utilizado pelo projeto
 
-### Clonando o repositório
-
-Clone o projeto e acesse a pasta:
+Para verificar as instalações:
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+node -v
+npm -v
+git --version
+```
+
+### 1. Clonando o repositório
+
+Clone o repositório e acesse a pasta do projeto:
+
+```bash
+git clone https://github.com/anaclarays/elo.git
 cd elo
 ```
-## Configuração do banco de dados (Neon)
 
-O banco de dados do Sistema ELO é PostgreSQL, hospedado no Neon. Não é
-necessário instalar ou rodar PostgreSQL localmente.
+### 2. Configurando o banco de dados
 
-1. O documento com as credenciais do banco se encontra no Drive do
-   projeto (na pasta `Banco de dados`).
-2. Copie as duas strings de conexão do documento:
-   - `DATABASE_URL` (com pooling)
-   - `DIRECT_URL` (sem pooling)
-3. Na raiz da pasta `backend/`, copie o arquivo de exemplo:
+O banco de dados do ELO utiliza PostgreSQL hospedado no Neon. Não é necessário instalar ou executar o PostgreSQL localmente.
+
+Para configurar a conexão:
+
+1. Acesse o documento com as credenciais do banco, que fica no Drive do projeto, na pasta `Banco de dados`.
+2. Copie as strings de conexão necessárias:
+   - `DATABASE_URL` — conexão com pooling;
+   - `DIRECT_URL` — conexão direta, sem pooling.
+3. Acesse a pasta do backend:
+
 ```bash
-    cd backend
-    cp .env.example .env
-```
-4. Abra o `.env` e cole as duas strings:
-```
-    DATABASE_URL="a-string-com-pooler-aqui"
-    DIRECT_URL="a-string-sem-pooler-aqui"
+cd backend
 ```
 
-**Nunca** compartilhe esse arquivo ou cole ele no Git!
- Ele já está no `.gitignore` do projeto.
+4. Copie o arquivo de exemplo das variáveis de ambiente:
 
-### Siga o passo a passo 
+```bash
+cp .env.example .env
+```
 
-**Importante:** todos os comandos abaixo devem ser rodados dentro da
-pasta `backend/`, nunca na raiz do repositório.
+No Windows PowerShell, caso o comando anterior não funcione:
 
-- Acesse o backend: `cd backend`
-- Instale as dependências: `npm ci`
-- Para executar o backend em ambiente de desenvolvimento: `npm run start:dev`
+```powershell
+Copy-Item .env.example .env
+```
 
-O `npm ci` instala exatamente as versões registradas no
-`package-lock.json`, para que todo mundo rode o projeto com as mesmas
-dependências. Rode de novo sempre que fizer `git pull` e o
-`package-lock.json` tiver mudado.
+5. Preencha o arquivo `.env` com as configurações necessárias.
 
-O backend estará disponível em: http://localhost:3000
+Exemplo:
 
+```env
+DATABASE_URL="sua-string-de-conexao-com-pooling"
+DIRECT_URL="sua-string-de-conexao-direta"
+JWT_SECRET="uma-chave-secreta-com-pelo-menos-32-caracteres"
+PASSWORD_RESET_URL="http://localhost:5173/redefinir-senha"
+```
 
-Se aparecer esta linha no terminal, a conexão está funcionando:
+Para enviar os e-mails de recuperação de senha, preencha também as variáveis `SMTP_*`. Consulte o arquivo `.env.example` para verificar todas as variáveis disponíveis.
 
-    Conexão com o PostgreSQL (Neon) estabelecida: { now: ... }
+**Importante:** nunca compartilhe o arquivo `.env` ou envie credenciais para o repositório. Ele contém informações sensíveis e já está no `.gitignore` do projeto.
 
-Se aparecer um erro em vez disso, confira se o `.env` foi preenchido
-corretamente e se você está rodando os comandos dentro de `backend/`.
+### 3. Executando o backend
 
-### Testes
+Todos os comandos desta seção devem ser executados dentro da pasta `backend/`.
 
-Rode os testes com:
+#### Instalando as dependências
+
+```bash
+npm ci
+```
+
+O comando `npm ci` instala as dependências de acordo com as versões registradas no `package-lock.json`, garantindo maior consistência entre os ambientes de desenvolvimento. Execute-o novamente sempre que fizer `git pull` e o `package-lock.json` tiver mudado.
+
+#### Executando em desenvolvimento
+
+```bash
+npm run start:dev
+```
+
+O backend estará disponível localmente em:
+
+[http://localhost:3000](http://localhost:3000)
+
+Se a conexão com o banco estiver funcionando, esta linha aparece no terminal:
+
+```text
+Conexão com o PostgreSQL (Neon) estabelecida: { now: ... }
+```
+
+Caso a aplicação apresente erros de conexão com o banco de dados, verifique:
+
+- Se o arquivo `.env` foi criado corretamente;
+- Se `DATABASE_URL` e `DIRECT_URL` estão preenchidas;
+- Se as credenciais estão válidas;
+- Se os comandos estão sendo executados dentro de `backend/`.
+
+### 4. Executando o frontend web
+
+Com o backend em execução, abra um novo terminal na raiz do repositório.
+
+Acesse a pasta do frontend:
+
+```bash
+cd frontend
+```
+
+Instale as dependências:
+
+```bash
+npm ci
+```
+
+Execute o ambiente de desenvolvimento:
+
+```bash
+npm run dev
+```
+
+O frontend estará disponível em:
+
+[http://localhost:5173](http://localhost:5173)
+
+Durante o desenvolvimento local, as chamadas feitas para `/api` são encaminhadas ao backend na porta 3000.
+
+#### Compilando o frontend
+
+Para gerar a versão de produção do frontend:
+
+```bash
+npm run build
+```
+
+O comando verifica os tipos com o TypeScript e gera os arquivos na pasta `dist/`.
+
+### 5. Executando os testes
+
+#### Backend
+
+Os testes automatizados do backend devem ser executados dentro da pasta `backend/`:
 
 ```bash
 npm test
 ```
 
-Use sempre `npm test`, e não `npx jest`: o script do projeto passa a
-flag `--experimental-vm-modules` para o Node, e sem ela as suítes
-falham antes de rodar.
+Utilize o script `npm test` disponibilizado no projeto, em vez de executar diretamente `npx jest`, pois o script passa a flag `--experimental-vm-modules` para o Node.js; sem ela, as suítes de testes falham antes de rodar.
 
-### Adicionando ou atualizando dependências
+#### Frontend
 
-O `npm ci` só instala o que já está no `package-lock.json`. Para
-adicionar ou atualizar uma dependência, use o `npm install`:
+O frontend não possui testes automatizados. A verificação de tipos do TypeScript é executada no `npm run build`.
+
+### 6. Adicionando ou atualizando dependências
+
+Para adicionar uma nova dependência, acesse a pasta correspondente (`backend/` ou `frontend/`) e execute:
 
 ```bash
 npm install <pacote>
 ```
 
-Depois, commite o `package.json` e o `package-lock.json` juntos.
+Após adicionar ou atualizar dependências, os arquivos `package.json` e `package-lock.json` devem ser versionados juntos.
 
-## Frontend
+Para instalar as dependências de um projeto já configurado, prefira `npm ci`.
 
-Com o backend em execução na porta 3000, abra outro terminal na raiz do repositório:
+---
 
-```bash
-cd frontend
-npm ci
-npm run dev
-```
+## Variáveis de ambiente
 
-Acesse [o módulo web local](http://localhost:5173). O servidor de desenvolvimento encaminha as chamadas `/api` ao backend. Para compilar o frontend, execute `npm run build` dentro de `frontend/`.
+As variáveis de ambiente utilizadas pela aplicação são definidas nos arquivos `.env`, que não devem ser versionados.
 
-No `.env` do backend, configure `JWT_SECRET` com pelo menos 32 caracteres. Para enviar links de recuperação, preencha as variáveis `SMTP_*` e aponte `PASSWORD_RESET_URL` para `http://localhost:5173/redefinir-senha` no ambiente local.
+Entre as configurações relevantes estão:
 
-Quando a API for hospedada separadamente, defina `VITE_API_URL` para a URL da API antes de compilar e `WEB_ORIGIN` para a origem do frontend no backend. Configure a hospedagem do frontend para servir `index.html` nas rotas da aplicação e use o endereço HTTPS do frontend em `PASSWORD_RESET_URL`.
+| Variável | Onde | Descrição |
+|---|---|---|
+| `DATABASE_URL` | Backend | String de conexão PostgreSQL com pooling |
+| `DIRECT_URL` | Backend | String de conexão PostgreSQL direta |
+| `JWT_SECRET` | Backend | Chave utilizada na autenticação JWT (pelo menos 32 caracteres) |
+| `SMTP_*` | Backend | Configurações de envio de e-mails |
+| `PASSWORD_RESET_URL` | Backend | URL da tela de redefinição de senha (local: `http://localhost:5173/redefinir-senha`) |
+| `WEB_ORIGIN` | Backend | Origem do frontend autorizada a chamar a API quando ela é hospedada separadamente |
+| `VITE_API_URL` | Frontend | URL da API, usada quando ela é hospedada separadamente |
+
+Consulte o arquivo `.env.example` do backend para verificar os nomes, valores esperados e configurações adicionais. A variável `VITE_API_URL` é do frontend e só é necessária fora do ambiente local.
+
+### Hospedando o frontend e a API separadamente
+
+- Defina `VITE_API_URL` com a URL da API **antes** de compilar o frontend.
+- No backend, defina `WEB_ORIGIN` com a origem do frontend.
+- Configure a hospedagem do frontend para servir o `index.html` em todas as rotas da aplicação.
+- Use o endereço HTTPS do frontend em `PASSWORD_RESET_URL`.
+
+---
+
+## Informações acadêmicas
+
+| Informação | Detalhes |
+|---|---|
+| Projeto | ELO |
+| Disciplina | Integração e Evolução de Sistemas de Informação (IESI) |
+| Instituição | Centro de Informática — Universidade Federal de Pernambuco |
+| Período | 2026.2 |
+| Status | Concluído |
+
+---
+
+<p align="center">
+  Desenvolvido como projeto acadêmico de IESI — CIn/UFPE.
+</p>
