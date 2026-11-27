@@ -246,7 +246,7 @@ em { color: var(--danger); font-style: normal; }
 .profile-label { min-width: 0; }
 .profile-label strong, .profile-label small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .profile-label strong { font-size: .9rem; }
-.avatar, .summary-icon { flex: none; display: grid; place-items: center; }
+.avatar { flex: none; display: grid; place-items: center; }
 .avatar { width: 2.25rem; height: 2.25rem; color: var(--white); background: var(--blue); border-radius: 50%; font-size: .8rem; font-weight: 700; }
 .profile-options {
   position: absolute;
@@ -275,15 +275,7 @@ em { color: var(--danger); font-style: normal; }
 .page-heading .primary-button, .form-actions .primary-button { width: auto; }
 .panel { padding: clamp(1rem, 2vw, 1.5rem); background: var(--white); border: 1px solid var(--border); border-radius: 1rem; }
 .panel h2 { font-size: 1rem; }
-.dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; align-items: start; gap: 1.25rem; }
-.operation-links { display: grid; gap: .55rem; margin-top: 1rem; }
-.operation-links a { display: flex; align-items: center; gap: .7rem; padding: .7rem; background: var(--blue-light); border-radius: .6rem; }
-.dashboard-summary { display: flex; align-items: flex-start; gap: .9rem; }
-.summary-icon { width: 3rem; height: 3rem; color: var(--navy); background: var(--blue-light); border-radius: .7rem; }
-.dashboard-summary h2 { color: var(--muted); }
-.summary-number { font-size: 1.75rem; font-weight: 700; }
-.dashboard-summary a, .text-button { font-size: .9rem; }
-.text-button { padding: 0; border: 0; background: transparent; }
+.text-button { padding: 0; border: 0; background: transparent; font-size: .9rem; }
 
 .reports-page { max-width: 84rem; margin-inline: auto; }
 .reports-page .page-heading { margin-bottom: 1.25rem; }
@@ -625,7 +617,7 @@ body:has(.workspace-dialog[open]) { overflow: hidden; }
   .auth-page { padding-block: 1.25rem; }
   .auth-card { padding: 1.375rem; border-radius: 1rem; }
   .auth-logo { width: 7.5rem; margin-bottom: 1.25rem; }
-  .area-row, .dashboard-grid { grid-template-columns: 1fr; }
+  .area-row { grid-template-columns: 1fr; }
   .page-heading { align-items: flex-start; flex-direction: column; }
   .current-page { display: none; }
   .professional-grid { grid-template-columns: minmax(0, 1fr); }
