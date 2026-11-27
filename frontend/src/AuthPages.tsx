@@ -104,7 +104,6 @@ export function Login({ onSession }: { onSession: (session: Session) => void }) 
   const [password, setPassword] = useState('');
   const { pending, error, submit } = useSubmit();
   const location = useLocation();
-  const navigate = useNavigate();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,7 +111,6 @@ export function Login({ onSession }: { onSession: (session: Session) => void }) 
     void submit(async () => {
       const session = await api<Session>('/auth/login', { body: { email: String(data.get('email')).trim(), senha: password } });
       onSession(session);
-      navigate('/dashboard', { replace: true });
     });
   }
 
@@ -203,7 +201,6 @@ export function Register({ onSession }: { onSession: (session: Session) => void 
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const { pending, error, submit } = useSubmit();
-  const navigate = useNavigate();
   const admin = area === 'coordenacao_administrativa';
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -226,7 +223,6 @@ export function Register({ onSession }: { onSession: (session: Session) => void 
         }),
       } });
       onSession(session);
-      navigate('/dashboard', { replace: true });
     });
   }
 
