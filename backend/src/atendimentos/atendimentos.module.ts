@@ -14,5 +14,6 @@ import { ListaEsperaModule } from '../lista-espera/lista-espera.module';
     AtendimentosRepository,
     ProfissionaisService,
   ],
+  exports: [AtendimentosService],
 })
 export class AtendimentosModule {}

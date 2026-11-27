@@ -1,6 +1,6 @@
 import {
   CalendarCheck, CalendarClock, ChartNoAxesColumnIncreasing, ChevronDown, LayoutDashboard, ListPlus,
-  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Trash2, UserRound, Users, UserRoundCog, X,
+  LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, Sparkles, Trash2, UserRound, Users, UserRoundCog, X,
 } from 'lucide-react';
 import { ProfileModal } from './ProfileModal';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -9,6 +9,7 @@ import { api, ApiError, areas, expiration, type Session } from './api';
 import { Agenda } from './Agenda';
 import { Login, Recovery, Register, ResetPassword, Welcome } from './AuthPages';
 import { Beneficiarios, type Beneficiario } from './Beneficiarios';
+import { Sugestoes } from './Sugestoes';
 import { Team } from './Team';
 import { WorkspaceNotification, type Notification } from './WorkspaceFeedback';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
@@ -16,6 +17,7 @@ import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 const overview = [
   { label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
   { label: 'Beneficiários', path: '/beneficiarios', Icon: Users },
+  { label: 'Sugestões de IA', path: '/sugestoes-ia', Icon: Sparkles },
 ];
 const operations = [
   { label: 'Agenda Inteligente', path: '/agenda-inteligente', Icon: CalendarClock },
@@ -193,6 +195,7 @@ function Dashboard({ token, onExpired }: DataAccess) {
         <h2>Painel Operacional</h2>
         <div className="operation-links">
           {operations.map(({ label, path, Icon }) => <Link to={path} key={path}><Icon size={20} aria-hidden="true" /> {label}</Link>)}
+          <Link to={overview[2].path}><Sparkles size={20} aria-hidden="true" /> {overview[2].label}</Link>
         </div>
       </section>
       <section className="panel dashboard-summary">
@@ -591,6 +594,8 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard {...dataAccess} />} />
         <Route path="/beneficiarios" element={<Beneficiarios {...dataAccess} onNotify={setNotification}
           canRemove={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
+        <Route path={overview[2].path} element={<Sugestoes {...dataAccess} onNotify={setNotification}
+          admin={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path={operations[0].path} element={session ? <Agenda {...dataAccess} onNotify={setNotification} person={session.profissional} /> : login} />
         <Route path="/lista-de-espera" element={<Waitlist {...dataAccess} canManage={session?.profissional.areaAtuacao === 'coordenacao_administrativa'} />} />
         <Route path="/equipe" element={session?.profissional.areaAtuacao === 'coordenacao_administrativa'
