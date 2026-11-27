@@ -1,5 +1,5 @@
 import { CalendarMinus, Check, History, Pencil, RefreshCw, TrendingUp, UserPlus, X } from 'lucide-react';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from './api';
 import { PageHeader, useRecords, type DataAccess } from './WorkspaceData';
 import { WorkspaceDialog, type Notification } from './WorkspaceFeedback';
@@ -230,6 +230,8 @@ function ModifyDialog({ suggestion, admin, team, pending, error, onClose, onSubm
   const [type, setType] = useState<AppointmentType | ''>(acao.tipo === 'agendar' ? acao.tipoAtendimento : '');
   const [kept, setKept] = useState<string[]>(acao.tipo === 'cancelar' ? acao.atendimentos.map((a) => a.id) : []);
   const [reason, setReason] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const alertRef = useRef<HTMLParagraphElement>(null);
 
   // Só os campos que mudaram vão para o backend
   const body: Record<string, unknown> = {};
@@ -240,18 +242,31 @@ function ModifyDialog({ suggestion, admin, team, pending, error, onClose, onSubm
   } else if (acao.tipo === 'cancelar' && kept.length !== acao.atendimentos.length) {
     body.atendimentoIds = kept;
   }
-  const changed = Object.keys(body).length > 0;
-  const valid = changed && reason.trim() && (!scheduled || (date && time)) && (acao.tipo !== 'cancelar' || kept.length > 0);
+  // Como no Descartar, o botão ativa com o motivo; o que falta é explicado ao clicar
+  const problem = !Object.keys(body).length
+    ? acao.tipo === 'cancelar'
+      ? 'Nenhum atendimento foi desmarcado. Desmarque os que devem continuar na agenda, ou use Aprovar para cancelar todos.'
+      : 'Nenhum campo foi alterado. Mude ao menos um campo antes de aprovar com ajustes, ou use Aprovar para aceitar a sugestão como está.'
+    : acao.tipo === 'cancelar' && !kept.length
+      ? 'Deixe marcado ao menos um atendimento para cancelar. Para manter todos, use Descartar.'
+      : '';
+  const message = attempts && problem ? problem : error;
   const options = team?.filter((p) => isActive(p) || p.id === scheduled?.profissionalId) ?? [];
+
+  // A mensagem fica no fim do formulário: rola até ela para não passar despercebida
+  useEffect(() => {
+    if (message) alertRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [message, attempts]);
 
   return <WorkspaceDialog title="Modificar sugestão" pending={pending} onClose={onClose}>
     <form className="workspace-dialog-form" onSubmit={(event) => {
       event.preventDefault();
-      if (valid) onSubmit({ ...body, motivo: reason.trim() });
+      setAttempts((n) => n + 1);
+      if (!problem && reason.trim()) onSubmit({ ...body, motivo: reason.trim() });
     }}>
       <div className="workspace-dialog-content">
         <fieldset className="agenda-fields" disabled={pending}>
-          <p className="agenda-hint"><strong>{suggestion.titulo}</strong><br />Ajuste o que precisar: a aprovação já vai para a agenda com as mudanças.</p>
+          <p className="agenda-hint"><strong>{suggestion.titulo}</strong><br />Altere o que precisar e explique o motivo: a aprovação já vai para a agenda com as mudanças. Para aceitar a sugestão como está, use Aprovar.</p>
           {scheduled && <>
             <label className="field"><span>{acao.tipo === 'transferir' ? 'Transferir para' : 'Profissional'}</span>
               {admin ? <select value={professional} onChange={(event) => setProfessional(event.target.value)} data-initial-focus>
@@ -287,12 +302,12 @@ function ModifyDialog({ suggestion, admin, team, pending, error, onClose, onSubm
             <textarea className="agenda-reason" maxLength={500} required value={reason}
               placeholder="Ex.: a família só pode às sextas" onChange={(event) => setReason(event.target.value)} />
           </label>
-          {error && <p className="notice error" role="alert">{error}</p>}
+          {message && <p ref={alertRef} className="notice error" role="alert">{message}</p>}
         </fieldset>
       </div>
       <footer className="form-actions workspace-dialog-footer">
         <button type="button" className="back-button" disabled={pending} onClick={onClose}>Voltar</button>
-        <button className="primary-button" disabled={pending || !valid}>{pending ? 'Aprovando…' : 'Aprovar com ajustes'}</button>
+        <button className="primary-button" disabled={pending || !reason.trim()}>{pending ? 'Aprovando…' : 'Aprovar com ajustes'}</button>
       </footer>
     </form>
   </WorkspaceDialog>;
